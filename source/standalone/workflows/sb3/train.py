@@ -2,6 +2,8 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+# ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 512
+
 
 """Script to train RL agent with Stable Baselines3.
 
@@ -49,6 +51,7 @@ import os
 import random
 from datetime import datetime
 
+import sbx
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.logger import configure
@@ -68,6 +71,43 @@ import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
 from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
+import torch
+
+import gymnasium as gym
+from stable_baselines3.common.vec_env import VecEnvWrapper
+import numpy as np
+
+
+class RescaleActionWrapper(VecEnvWrapper):
+
+    def __init__(self, vec_env, percent=5.0):
+        super().__init__(vec_env)
+        self.low, self.high = vec_env.action_space.low, vec_env.action_space.high
+        self.percent = percent
+        self.action_space = gym.spaces.Box(
+            low=-1.0,
+            high=1.0,
+            shape=vec_env.action_space.shape,
+            dtype=np.float32,
+        )
+
+    def step_async(self, actions: np.ndarray) -> None:
+        # Rescale the action from [-1, 1] to [low, high]
+        low = self.percent * 0.01 * self.low
+        high = self.percent * 0.01 * self.high
+        rescaled_action = low + (0.5 * (actions + 1.0) * (high - low))
+        self.venv.step_async(rescaled_action)
+
+    def reset(self) -> np.ndarray:
+        return self.venv.reset()
+
+    def step_wait(self):
+        return self.venv.step_wait()
+
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.backends.cudnn.deterministic = False
+torch.backends.cudnn.benchmark = False
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
@@ -124,6 +164,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
+    env = RescaleActionWrapper(env, percent=2.5)
+    # import ipdb
+    # ipdb.set_trace()
+
     if "normalize_input" in agent_cfg:
         env = VecNormalize(
             env,
@@ -135,18 +179,61 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             clip_reward=np.inf,
         )
 
-    # create agent from stable baselines
-    agent = PPO(policy_arch, env, verbose=1, **agent_cfg)
-    # configure the logger
-    new_logger = configure(log_dir, ["stdout", "tensorboard"])
-    agent.set_logger(new_logger)
+    import optax
+    simba_hyperparams = dict(
+        # batch_size=256,
+        # buffer_size=100_000,
+        # learning_rate=3e-4,
+        policy_kwargs={
+            "optimizer_class": optax.adamw,
+            "net_arch": {"pi": [128], "qf": [256, 256]},
+            "n_critics": 2,
+        },
+        learning_starts=10_000,
+        # normalize={"norm_obs": True, "norm_reward": False},
+        # resets=[50000, 75000],
+    )
+    agent = sbx.TQC(
+        "SimbaPolicy",
+        env,
+        train_freq=5,
+        # learning_rate=1e-3,
+        batch_size=256,
+        gradient_steps=min(env.num_envs, 256),
+        policy_delay=10,
+        verbose=1,
+        # ent_coef=0.01,
+        **simba_hyperparams,
+    )
 
+    # create agent from stable baselines
+    # agent = PPO(policy_arch, env, verbose=1, **agent_cfg)
+    # agent = sbx.PPO(policy_arch, env, verbose=1, **agent_cfg)
+    # configure the logger
+    # new_logger = configure(log_dir, ["stdout", "tensorboard"])
+    # agent.set_logger(new_logger)
+    # agent = sbx.SAC(
+    #     "MlpPolicy",
+    #     env,
+    #     train_freq=5,
+    #     gradient_steps=min(env.num_envs, 256),
+    #     policy_delay=10,
+    #     verbose=1,
+    # )
+
+    print(f"{env.num_envs=}")
     # callbacks for agent
-    checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
+    # checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
+    checkpoint_callback = None
     # train the agent
-    agent.learn(total_timesteps=n_timesteps, callback=checkpoint_callback)
+    try:
+        agent.learn(total_timesteps=n_timesteps, callback=checkpoint_callback, progress_bar=True, log_interval=20)
+    except KeyboardInterrupt:
+        pass
     # save the final model
     agent.save(os.path.join(log_dir, "model"))
+    print("Saving to:")
+    print(os.path.join(log_dir, "model"))
 
     # close the simulator
     env.close()
