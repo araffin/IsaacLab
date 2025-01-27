@@ -2,6 +2,9 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+# ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 \
+#  --num_envs 50 --use_last_checkpoint
+
 
 """Script to play a checkpoint if an RL agent from Stable-Baselines3."""
 
@@ -45,6 +48,7 @@ import numpy as np
 import os
 import torch
 
+import sbx
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -53,7 +57,7 @@ from omni.isaac.lab.utils.dict import print_dict
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
+from omni.isaac.lab_tasks.utils.wrappers.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
 
 
 def main():
@@ -102,6 +106,8 @@ def main():
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
+    env = RescaleActionWrapper(env, percent=2.5)
+
     # normalize environment (if needed)
     if "normalize_input" in agent_cfg:
         env = VecNormalize(
@@ -116,7 +122,8 @@ def main():
 
     # create agent from stable baselines
     print(f"Loading checkpoint from: {checkpoint_path}")
-    agent = PPO.load(checkpoint_path, env, print_system_info=True)
+    # agent = PPO.load(checkpoint_path, env, print_system_info=True)
+    agent = sbx.TQC.load(checkpoint_path, env, print_system_info=True)
 
     # reset environment
     obs = env.reset()

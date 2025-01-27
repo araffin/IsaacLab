@@ -26,8 +26,14 @@ parser.add_argument("--video_length", type=int, default=200, help="Length of the
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument("--no-info", action="store_true", default=False, help="Faster training but no statistics.")
+parser.add_argument(
+    "--no-extra", action="store_true", default=False, help="Faster training but incorrect bootstrapping."
+)
+# parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -49,12 +55,17 @@ import gymnasium as gym
 import numpy as np
 import os
 import random
+import torch
 from datetime import datetime
 
+import flax
+import optax
 import sbx
-from stable_baselines3 import PPO
+
+# from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.logger import configure
+
+# from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecNormalize
 
 from omni.isaac.lab.envs import (
@@ -69,45 +80,13 @@ from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
-from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
-
-import torch
-
-import gymnasium as gym
-from stable_baselines3.common.vec_env import VecEnvWrapper
-import numpy as np
-
-
-class RescaleActionWrapper(VecEnvWrapper):
-
-    def __init__(self, vec_env, percent=5.0):
-        super().__init__(vec_env)
-        self.low, self.high = vec_env.action_space.low, vec_env.action_space.high
-        self.percent = percent
-        self.action_space = gym.spaces.Box(
-            low=-1.0,
-            high=1.0,
-            shape=vec_env.action_space.shape,
-            dtype=np.float32,
-        )
-
-    def step_async(self, actions: np.ndarray) -> None:
-        # Rescale the action from [-1, 1] to [low, high]
-        low = self.percent * 0.01 * self.low
-        high = self.percent * 0.01 * self.high
-        rescaled_action = low + (0.5 * (actions + 1.0) * (high - low))
-        self.venv.step_async(rescaled_action)
-
-    def reset(self) -> np.ndarray:
-        return self.venv.reset()
-
-    def step_wait(self):
-        return self.venv.step_wait()
+from omni.isaac.lab_tasks.utils.wrappers.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
+
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
@@ -120,8 +99,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
     # max iterations for training
-    if args_cli.max_iterations is not None:
-        agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
+    # if args_cli.max_iterations is not None:
+    #     agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
@@ -139,7 +118,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
     # read configurations about the agent-training
-    policy_arch = agent_cfg.pop("policy")
+    # policy_arch = agent_cfg.pop("policy")
     n_timesteps = agent_cfg.pop("n_timesteps")
 
     # create isaac environment
@@ -162,13 +141,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env)
+    env = Sb3VecEnvWrapper(env, keep_info=not args_cli.no_info, keep_extra=not args_cli.no_extra)
 
-    env = RescaleActionWrapper(env, percent=2.5)
+    if args_cli.algo != "ppo":
+        env = RescaleActionWrapper(env, percent=2.5)
     # import ipdb
     # ipdb.set_trace()
 
     if "normalize_input" in agent_cfg:
+        print("Normalizing input")
         env = VecNormalize(
             env,
             training=True,
@@ -179,7 +160,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             clip_reward=np.inf,
         )
 
-    import optax
     simba_hyperparams = dict(
         # batch_size=256,
         # buffer_size=100_000,
@@ -193,38 +173,51 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # normalize={"norm_obs": True, "norm_reward": False},
         # resets=[50000, 75000],
     )
-    agent = sbx.TQC(
-        "SimbaPolicy",
-        env,
-        train_freq=5,
-        # learning_rate=1e-3,
-        batch_size=256,
-        gradient_steps=min(env.num_envs, 256),
-        policy_delay=10,
-        verbose=1,
-        # ent_coef=0.01,
-        **simba_hyperparams,
-    )
+    if args_cli.algo == "tqc":
+        agent = sbx.TQC(
+            "SimbaPolicy",
+            env,
+            train_freq=5,
+            # learning_rate=1e-3,
+            batch_size=256,
+            gradient_steps=min(env.num_envs, 256),
+            policy_delay=10,
+            verbose=1,
+            # ent_coef=0.01,
+            **simba_hyperparams,
+        )
+    elif args_cli.algo == "ppo":
+        # Default to CPU, faster to compute
+        # import jax
+        # jax.config.update("jax_platform_name", "cpu")
+        n_timesteps = int(3e7)
 
-    # create agent from stable baselines
-    # agent = PPO(policy_arch, env, verbose=1, **agent_cfg)
-    # agent = sbx.PPO(policy_arch, env, verbose=1, **agent_cfg)
+        hyperparams = dict(
+            policy_kwargs=dict(
+                activation_fn=flax.linen.elu,
+                # net_arch=[512, 256, 128],
+                net_arch=[128, 128, 128],
+            )
+        )
+        # agent = PPO("MlpPolicy", env, verbose=1, **agent_cfg)
+        agent = sbx.PPO("MlpPolicy", env, verbose=1, **agent_cfg)
+    elif args_cli.algo == "sac":
+        agent = sbx.SAC(
+            "MlpPolicy",
+            env,
+            train_freq=5,
+            gradient_steps=min(env.num_envs, 256),
+            policy_delay=10,
+            verbose=1,
+        )
     # configure the logger
     # new_logger = configure(log_dir, ["stdout", "tensorboard"])
     # agent.set_logger(new_logger)
-    # agent = sbx.SAC(
-    #     "MlpPolicy",
-    #     env,
-    #     train_freq=5,
-    #     gradient_steps=min(env.num_envs, 256),
-    #     policy_delay=10,
-    #     verbose=1,
-    # )
 
     print(f"{env.num_envs=}")
     # callbacks for agent
-    # checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
-    checkpoint_callback = None
+    checkpoint_callback = CheckpointCallback(save_freq=2000, save_path=log_dir, name_prefix="model", verbose=2)
+    # checkpoint_callback = None
     # train the agent
     try:
         agent.learn(total_timesteps=n_timesteps, callback=checkpoint_callback, progress_bar=True, log_interval=20)
