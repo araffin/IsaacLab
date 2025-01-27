@@ -29,9 +29,9 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
-parser.add_argument("--no-info", action="store_true", default=False, help="Faster training but no statistics.")
+parser.add_argument("--fast", action="store_true", default=False, help="Faster correct training but not extras logged.")
 parser.add_argument(
-    "--no-extra", action="store_true", default=False, help="Faster training but incorrect bootstrapping."
+    "--no-info", action="store_true", default=False, help="Fastest and incorrect training but no statistics."
 )
 # parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
 # append AppLauncher cli args
@@ -141,7 +141,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env, keep_info=not args_cli.no_info, keep_extra=not args_cli.no_extra)
+    env = Sb3VecEnvWrapper(
+        env,
+        fast_variant=args_cli.fast,
+        keep_info=not args_cli.no_info,
+    )
 
     if args_cli.algo != "ppo":
         env = RescaleActionWrapper(env, percent=2.5)
@@ -178,18 +182,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "SimbaPolicy",
             env,
             train_freq=5,
-            # learning_rate=1e-3,
+            learning_rate=1e-3,
             batch_size=256,
             gradient_steps=min(env.num_envs, 256),
             policy_delay=10,
             verbose=1,
-            # ent_coef=0.01,
+            ent_coef=0.01,
             **simba_hyperparams,
         )
     elif args_cli.algo == "ppo":
-        # Default to CPU, faster to compute
-        # import jax
-        # jax.config.update("jax_platform_name", "cpu")
         n_timesteps = int(3e7)
 
         hyperparams = dict(
@@ -199,8 +200,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 net_arch=[128, 128, 128],
             )
         )
-        # agent = PPO("MlpPolicy", env, verbose=1, **agent_cfg)
-        agent = sbx.PPO("MlpPolicy", env, verbose=1, **agent_cfg)
+
+        # import torch
+        # import stable_baselines3 as sb3
+        # import warnings
+        # warnings.simplefilter()
+        # hyperparams = dict(
+        #     policy_kwargs=dict(
+        #         activation_fn=torch.nn.ELU,
+        #         net_arch=[128, 128, 128],
+        #     )
+        # )
+        # agent = sb3.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
+        agent = sbx.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
     elif args_cli.algo == "sac":
         agent = sbx.SAC(
             "MlpPolicy",
