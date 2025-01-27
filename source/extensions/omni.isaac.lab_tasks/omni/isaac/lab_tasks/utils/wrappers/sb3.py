@@ -125,16 +125,16 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, keep_info: bool = True, keep_extra: bool = True):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = False, keep_info: bool = True):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
+            fast_variant: Use fast variant for processing info
+                (correct but extra info are not included)
             keep_info: Whether to convert IsaacLab info to SB3 format.
                 When False, it is faster but incorrect (truncation are not properly set)
                 and episodic reward is not reported.
-            keep_extra: Whether to keep/convert extra info.
-
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
@@ -147,7 +147,7 @@ class Sb3VecEnvWrapper(VecEnv):
         # initialize the wrapper
         self.env = env
         self.keep_info = keep_info
-        self.keep_extra = keep_extra
+        self.fast_variant = fast_variant
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
@@ -319,21 +319,29 @@ class Sb3VecEnvWrapper(VecEnv):
         self, obs: np.ndarray, terminated: np.ndarray, truncated: np.ndarray, extras: dict, reset_ids: np.ndarray
     ) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
-        # Faster (incorrect) version
-        if not self.keep_extra:
+        # Faster but correct version
+        # Only process env that terminated and add bootstrapping info
+        if self.fast_variant:
             infos = deepcopy(self.default_infos)
 
-            # Only process env that terminated:
             for idx in reset_ids:
+                # fill-in episode monitoring info
                 infos[idx]["episode"] = {
                     "r": float(self._ep_rew_buf[idx]),
                     "l": float(self._ep_len_buf[idx]),
                 }
 
-            return infos
+                # fill-in bootstrap information
+                infos[idx]["TimeLimit.truncated"] = truncated[idx] and not terminated[idx]
 
-        # TODO: add option to have faster version (only process env that terminate)
-        # but correct version (add bootstrapping info)
+                # add information about terminal observation separately
+                if isinstance(obs, dict):
+                    terminal_obs = {key: value[idx] for key, value in obs.items()}
+                else:
+                    terminal_obs = obs[idx]
+                infos[idx]["terminal_observation"] = terminal_obs
+
+            return infos
 
         # create empty list of dictionaries to fill
         infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.num_envs)]
