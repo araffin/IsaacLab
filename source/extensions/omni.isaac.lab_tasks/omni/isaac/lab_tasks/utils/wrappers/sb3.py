@@ -22,9 +22,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn  # noqa: F401
+from copy import deepcopy
 from typing import Any
 
 from stable_baselines3.common.utils import constant_fn
+from stable_baselines3.common.vec_env import VecEnvWrapper
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
 from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
@@ -123,11 +125,15 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, keep_info: bool = True, keep_extra: bool = True):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
+            keep_info: Whether to convert IsaacLab info to SB3 format.
+                When False, it is faster but incorrect (truncation are not properly set)
+                and episodic reward is not reported.
+            keep_extra: Whether to keep/convert extra info.
 
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
@@ -140,10 +146,14 @@ class Sb3VecEnvWrapper(VecEnv):
             )
         # initialize the wrapper
         self.env = env
+        self.keep_info = keep_info
+        self.keep_extra = keep_extra
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
         self.render_mode = self.unwrapped.render_mode
+
+        self.default_infos = [{"episode": None} for _ in range(self.num_envs)]
 
         # obtain gym spaces
         # note: stable-baselines3 does not like when we have unbounded action space so
@@ -239,7 +249,10 @@ class Sb3VecEnvWrapper(VecEnv):
         truncated = truncated.detach().cpu().numpy()
         dones = dones.detach().cpu().numpy()
         # convert extra information to list of dicts
-        infos = self._process_extras(obs, terminated, truncated, extras, reset_ids)
+        if self.keep_info:
+            infos = self._process_extras(obs, terminated, truncated, extras, reset_ids)
+        else:
+            infos = self.default_infos
 
         # reset info for terminated environments
         self._ep_rew_buf[reset_ids] = 0
@@ -306,8 +319,25 @@ class Sb3VecEnvWrapper(VecEnv):
         self, obs: np.ndarray, terminated: np.ndarray, truncated: np.ndarray, extras: dict, reset_ids: np.ndarray
     ) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
+        # Faster (incorrect) version
+        if not self.keep_extra:
+            infos = deepcopy(self.default_infos)
+
+            # Only process env that terminated:
+            for idx in reset_ids:
+                infos[idx]["episode"] = {
+                    "r": float(self._ep_rew_buf[idx]),
+                    "l": float(self._ep_len_buf[idx]),
+                }
+
+            return infos
+
+        # TODO: add option to have faster version (only process env that terminate)
+        # but correct version (add bootstrapping info)
+
         # create empty list of dictionaries to fill
         infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.num_envs)]
+
         # fill-in information for each sub-environment
         # note: This loop becomes slow when number of environments is large.
         for idx in range(self.num_envs):
@@ -318,6 +348,7 @@ class Sb3VecEnvWrapper(VecEnv):
                 infos[idx]["episode"]["l"] = float(self._ep_len_buf[idx])
             else:
                 infos[idx]["episode"] = None
+
             # fill-in bootstrap information
             infos[idx]["TimeLimit.truncated"] = truncated[idx] and not terminated[idx]
             # fill-in information from extras
@@ -346,3 +377,30 @@ class Sb3VecEnvWrapper(VecEnv):
                 infos[idx]["terminal_observation"] = None
         # return list of dictionaries
         return infos
+
+
+class RescaleActionWrapper(VecEnvWrapper):
+
+    def __init__(self, vec_env, percent=5.0):
+        super().__init__(vec_env)
+        self.low, self.high = vec_env.action_space.low, vec_env.action_space.high
+        self.percent = percent
+        self.action_space = gym.spaces.Box(
+            low=-1.0,
+            high=1.0,
+            shape=vec_env.action_space.shape,
+            dtype=np.float32,
+        )
+
+    def step_async(self, actions: np.ndarray) -> None:
+        # Rescale the action from [-1, 1] to [low, high]
+        low = self.percent * 0.01 * self.low
+        high = self.percent * 0.01 * self.high
+        rescaled_action = low + (0.5 * (actions + 1.0) * (high - low))
+        self.venv.step_async(rescaled_action)
+
+    def reset(self) -> np.ndarray:
+        return self.venv.reset()
+
+    def step_wait(self):
+        return self.venv.step_wait()
