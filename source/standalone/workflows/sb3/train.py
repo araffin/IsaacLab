@@ -185,12 +185,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "SimbaPolicy",
             env,
             train_freq=5,
-            learning_rate=1e-3,
+            # learning_rate=1e-3,
             batch_size=256,
             gradient_steps=min(env.num_envs, 256),
             policy_delay=10,
             verbose=1,
-            ent_coef=0.0005,
+            ent_coef=0.001,
             **simba_hyperparams,
         )
     elif args_cli.algo == "ppo":
