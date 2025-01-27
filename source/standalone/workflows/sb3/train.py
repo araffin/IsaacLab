@@ -166,7 +166,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     simba_hyperparams = dict(
         # batch_size=256,
-        buffer_size=100_000,
+        buffer_size=300_000,
         # learning_rate=3e-4,
         policy_kwargs={
             "optimizer_class": optax.adamw,
@@ -185,12 +185,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "SimbaPolicy",
             env,
             train_freq=5,
-            # learning_rate=1e-3,
-            batch_size=1024,
+            learning_rate=1e-3,
+            batch_size=256,
             gradient_steps=min(env.num_envs, 256),
             policy_delay=10,
             verbose=1,
-            # ent_coef=0.005,
+            ent_coef=0.0005,
             **simba_hyperparams,
         )
     elif args_cli.algo == "ppo":
