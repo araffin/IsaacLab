@@ -148,7 +148,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     )
 
     if args_cli.algo != "ppo":
-        env = RescaleActionWrapper(env, percent=2.5)
+        env = RescaleActionWrapper(env, percent=3)
     # import ipdb
     # ipdb.set_trace()
 
@@ -166,28 +166,31 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     simba_hyperparams = dict(
         # batch_size=256,
-        # buffer_size=100_000,
+        buffer_size=100_000,
         # learning_rate=3e-4,
         policy_kwargs={
             "optimizer_class": optax.adamw,
+            "activation_fn": flax.linen.elu,
             "net_arch": {"pi": [128], "qf": [256, 256]},
             "n_critics": 2,
         },
-        learning_starts=10_000,
+        # learning_starts=10_000,
+        learning_starts=1_000,
         # normalize={"norm_obs": True, "norm_reward": False},
-        # resets=[50000, 75000],
+        # param_resets=[int(i * 1e7) for i in range(1, 10)],
     )
     if args_cli.algo == "tqc":
+        n_timesteps = int(3e7)
         agent = sbx.TQC(
             "SimbaPolicy",
             env,
             train_freq=5,
-            learning_rate=1e-3,
-            batch_size=256,
+            # learning_rate=1e-3,
+            batch_size=1024,
             gradient_steps=min(env.num_envs, 256),
             policy_delay=10,
             verbose=1,
-            ent_coef=0.01,
+            # ent_coef=0.005,
             **simba_hyperparams,
         )
     elif args_cli.algo == "ppo":
