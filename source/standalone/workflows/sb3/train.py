@@ -2,7 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-# ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 512
+# ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 512 --fast
 
 
 """Script to train RL agent with Stable Baselines3.
@@ -108,7 +108,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # directory for logging into
-    log_dir = os.path.join("logs", "sb3", args_cli.task, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    log_dir = os.path.join("logs", "sb3", args_cli.algo, args_cli.task, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
@@ -165,6 +166,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         )
 
     simba_hyperparams = dict(
+        policy="SimbaPolicy",
         # batch_size=256,
         buffer_size=300_000,
         # learning_rate=3e-4,
@@ -179,22 +181,39 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # normalize={"norm_obs": True, "norm_reward": False},
         # param_resets=[int(i * 1e7) for i in range(1, 10)],
     )
+    ppo_hyperparams = dict(
+        policy="MlpPolicy",
+        policy_kwargs=dict(
+            activation_fn=flax.linen.elu,
+            # net_arch=[512, 256, 128],
+            net_arch=[128, 128, 128],
+        ),
+        learning_starts=1_000,
+    )
+    hyperparams = ppo_hyperparams
+
+    log_interval = 100
     if args_cli.algo == "tqc":
         n_timesteps = int(3e7)
         agent = sbx.TQC(
-            "SimbaPolicy",
-            env,
+            env=env,
             train_freq=5,
-            # learning_rate=1e-3,
-            batch_size=256,
+            # learning_rate=7e-4,
+            batch_size=512,
             gradient_steps=min(env.num_envs, 256),
             policy_delay=10,
             verbose=1,
-            ent_coef=0.001,
-            **simba_hyperparams,
+            # ent_coef=0.001,
+            ent_coef="auto_0.01",
+            # target_entropy=-10.0,
+            # tau=0.008,
+            # top_quantiles_to_drop_per_net=5,
+            # **simba_hyperparams,
+            **hyperparams,
         )
     elif args_cli.algo == "ppo":
         n_timesteps = int(3e7)
+        log_interval = 20
 
         hyperparams = dict(
             policy_kwargs=dict(
@@ -217,13 +236,23 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # agent = sb3.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
         agent = sbx.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
     elif args_cli.algo == "sac":
+        n_timesteps = int(3e7)
         agent = sbx.SAC(
             "MlpPolicy",
             env,
             train_freq=5,
+            batch_size=1024,
             gradient_steps=min(env.num_envs, 256),
             policy_delay=10,
+            learning_starts=1_000,
+            ent_coef="auto_0.01",
             verbose=1,
+            buffer_size=500_000,
+            policy_kwargs=dict(
+                activation_fn=flax.linen.elu,
+                net_arch=[128, 128, 128],
+            ),
+            # param_resets=[int(i * 2e7) for i in range(1, 10)],
         )
     # configure the logger
     # new_logger = configure(log_dir, ["stdout", "tensorboard"])
@@ -235,7 +264,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # checkpoint_callback = None
     # train the agent
     try:
-        agent.learn(total_timesteps=n_timesteps, callback=checkpoint_callback, progress_bar=True, log_interval=20)
+        agent.learn(
+            total_timesteps=n_timesteps,
+            callback=checkpoint_callback,
+            progress_bar=True,
+            log_interval=log_interval,
+        )
     except KeyboardInterrupt:
         pass
     # save the final model
