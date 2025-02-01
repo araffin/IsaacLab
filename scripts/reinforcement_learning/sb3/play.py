@@ -57,7 +57,8 @@ import torch
 
 import sbx
 from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
-from stable_baselines3 import PPO
+
+# from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent

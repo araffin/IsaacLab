@@ -55,7 +55,6 @@ import gymnasium as gym
 import numpy as np
 import os
 import random
-import torch
 from datetime import datetime
 
 import flax
