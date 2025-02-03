@@ -5,7 +5,7 @@ n_timesteps: !!float 1e7
 # policy: 'MlpPolicy'
 n_steps: 25
 # 8192 for 32 steps
-batch_size: 6400
+batch_size: 6400 # for 1024 envs, to have 4 minibatches
 gae_lambda: 0.95
 gamma: 0.99
 n_epochs: 5

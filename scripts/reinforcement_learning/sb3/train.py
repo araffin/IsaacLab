@@ -2,7 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-# ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 512 --fast
+# ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 1024 --fast
 
 
 """Script to train RL agent with Stable Baselines3.
@@ -15,6 +15,8 @@ there will be significant overhead in GPU->CPU transfer.
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
+import signal
 import sys
 
 from isaaclab.app import AppLauncher
@@ -49,6 +51,21 @@ sys.argv = [sys.argv[0]] + hydra_args
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+
+def cleanup_pbar(*args):
+    # Cleanup pbar
+    import gc
+
+    tqdm_objects = [obj for obj in gc.get_objects() if "tqdm" in type(obj).__name__]
+    for tqdm_object in tqdm_objects:
+        if "tqdm_rich" in type(tqdm_object).__name__:
+            tqdm_object.close()
+    raise KeyboardInterrupt
+
+
+# Disable KeyboardInterrupt override
+signal.signal(signal.SIGINT, cleanup_pbar)
+
 """Rest everything follows."""
 
 import gymnasium as gym
@@ -62,7 +79,7 @@ import optax
 import sbx
 
 # from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
+from isaaclab_rl.sb3 import ClipActionWrapper, RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 # from stable_baselines3.common.logger import configure
@@ -145,8 +162,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         keep_info=not args_cli.no_info,
     )
 
-    if args_cli.algo != "ppo":
-        env = RescaleActionWrapper(env, percent=3)
+    # if args_cli.algo != "ppo":
+    #     env = RescaleActionWrapper(env, percent=3)
+    # else:
+    #     env = ClipActionWrapper(env, percent=3)
+    #     # env = RescaleActionWrapper(env, percent=3)
+    # env = ClipActionWrapper(env, percent=3.0)
+    env = RescaleActionWrapper(env, percent=3.0)
+
+    print(f"Action space: {env.action_space}")
+
     # import ipdb
     # ipdb.set_trace()
 
@@ -165,7 +190,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     simba_hyperparams = dict(
         policy="SimbaPolicy",
         # batch_size=256,
-        buffer_size=300_000,
+        buffer_size=500_000,
         # learning_rate=3e-4,
         policy_kwargs={
             "optimizer_class": optax.adamw,
@@ -184,6 +209,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             activation_fn=flax.linen.elu,
             # net_arch=[512, 256, 128],
             net_arch=[128, 128, 128],
+            layer_norm=True,
         ),
         learning_starts=1_000,
     )
@@ -197,7 +223,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             train_freq=5,
             # learning_rate=7e-4,
             batch_size=512,
-            gradient_steps=min(env.num_envs, 256),
+            # gradient_steps=min(env.num_envs, 256),
+            gradient_steps=min(env.num_envs, 512),
             policy_delay=10,
             verbose=1,
             # ent_coef=0.001,
@@ -217,19 +244,29 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 activation_fn=flax.linen.elu,
                 # net_arch=[512, 256, 128],
                 net_arch=[128, 128, 128],
+                # log_std_init=-2.5,
             )
         )
 
         # import torch
         # import stable_baselines3 as sb3
-        # import warnings
-        # warnings.simplefilter()
+
+        # # # import warnings
+        # # # warnings.simplefilter()
         # hyperparams = dict(
         #     policy_kwargs=dict(
         #         activation_fn=torch.nn.ELU,
         #         net_arch=[128, 128, 128],
-        #     )
+        #         # log_std_init=-2.0,
+        #         # log_std_init=-4.2,
+        #         # use_expln=True,
+        #         # squash_output=True,
+        #     ),
+        #     # use_sde=True,
+        #     # sde_sample_freq=8,
+        #     # TODO: use AdamW too
         # )
+        # agent_cfg["ent_coef"] = 0.0
         # agent = sb3.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
         agent = sbx.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
     elif args_cli.algo == "sac":
@@ -238,13 +275,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "MlpPolicy",
             env,
             train_freq=5,
-            batch_size=1024,
+            batch_size=512,
+            # qf_learning_rate=7e-4,
             gradient_steps=min(env.num_envs, 256),
             policy_delay=10,
             learning_starts=1_000,
             ent_coef="auto_0.01",
             verbose=1,
-            buffer_size=500_000,
+            buffer_size=800_000,
+            # tau=0.01,
             policy_kwargs=dict(
                 activation_fn=flax.linen.elu,
                 net_arch=[128, 128, 128],
@@ -260,15 +299,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     checkpoint_callback = CheckpointCallback(save_freq=2000, save_path=log_dir, name_prefix="model", verbose=2)
     # checkpoint_callback = None
     # train the agent
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         agent.learn(
             total_timesteps=n_timesteps,
             callback=checkpoint_callback,
             progress_bar=True,
             log_interval=log_interval,
         )
-    except KeyboardInterrupt:
-        pass
+
     # save the final model
     agent.save(os.path.join(log_dir, "model"))
     print("Saving to:")

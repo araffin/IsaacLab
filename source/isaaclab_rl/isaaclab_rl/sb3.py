@@ -161,6 +161,7 @@ class Sb3VecEnvWrapper(VecEnv):
         observation_space = self.unwrapped.single_observation_space["policy"]
         action_space = self.unwrapped.single_action_space
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
+            print(f"Overriding action space {action_space} to Box(low=-100, high=100) because it is unbounded")
             action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
 
         # initialize vec-env
@@ -406,6 +407,35 @@ class RescaleActionWrapper(VecEnvWrapper):
         high = self.percent * 0.01 * self.high
         rescaled_action = low + (0.5 * (actions + 1.0) * (high - low))
         self.venv.step_async(rescaled_action)
+
+    def reset(self) -> np.ndarray:
+        return self.venv.reset()
+
+    def step_wait(self):
+        return self.venv.step_wait()
+
+
+class ClipActionWrapper(VecEnvWrapper):
+
+    def __init__(self, vec_env, percent=5.0):
+        super().__init__(vec_env)
+        self.low, self.high = vec_env.action_space.low, vec_env.action_space.high
+        self.percent = percent
+        print(f"Action low before: {self.low}")
+
+        self.action_space = gym.spaces.Box(
+            low=self.percent * 0.01 * self.low,
+            high=self.percent * 0.01 * self.high,
+            shape=vec_env.action_space.shape,
+            dtype=np.float32,
+        )
+        print(f"Action low after: {self.action_space.low}")
+        print(f"Action high after: {self.action_space.high}")
+
+    def step_async(self, actions: np.ndarray) -> None:
+        # Clipping is done inside the algorithm
+        # self.venv.step_async(np.clip(actions, self.action_space.low, self.action_space.high))
+        self.venv.step_async(actions)
 
     def reset(self) -> np.ndarray:
         return self.venv.reset()
