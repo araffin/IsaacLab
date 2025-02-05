@@ -233,6 +233,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         # optimize for best perf after 5 minutes
         callback = TimeoutCallback(timeout=60 * 5, start_after=3000)
         agent.learn(total_timesteps=int(3e7), callback=callback)
+        trial.set_user_attr("num_timesteps", agent.num_timesteps)
         mean_reward, _ = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
         del agent
         return mean_reward
