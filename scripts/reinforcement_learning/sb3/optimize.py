@@ -12,12 +12,8 @@ import sys
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(
-    description="Train an RL agent with Stable-Baselines3."
-)
-parser.add_argument(
-    "--num_envs", type=int, default=None, help="Number of environments to simulate."
-)
+parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Baselines3.")
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
     "--algo",
@@ -26,9 +22,7 @@ parser.add_argument(
     help="Name of the algorithm.",
     choices=["ppo", "sac", "tqc"],
 )
-parser.add_argument(
-    "--seed", type=int, default=None, help="Seed used for the environment"
-)
+parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--no-info",
     action="store_true",
@@ -54,37 +48,26 @@ import gymnasium as gym
 import numpy as np
 import os
 import random
-from datetime import datetime
 import time
+from datetime import datetime
 
 import flax
 import optax
 import sbx
 
 # from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import (
-    ClipActionWrapper,
-    RescaleActionWrapper,
-    Sb3VecEnvWrapper,
-    process_sb3_cfg,
-)
+from isaaclab_rl.sb3 import ClipActionWrapper, RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
+from stable_baselines3.common.callbacks import BaseCallback
 
 # from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecNormalize
-from stable_baselines3.common.callbacks import BaseCallback
 
-from isaaclab.envs import (
-    DirectRLEnvCfg,
-    ManagerBasedRLEnvCfg,
-    multi_agent_to_single_agent,
-)
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
-
-from stable_baselines3.common.callbacks import BaseCallback
 
 
 class TimeoutCallback(BaseCallback):
@@ -109,12 +92,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         args_cli.seed = random.randint(0, 10000)
 
     # override configurations with non-hydra CLI arguments
-    env_cfg.scene.num_envs = (
-        args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    )
-    agent_cfg["seed"] = (
-        args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
-    )
+    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+    agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
     # max iterations for training
     # if args_cli.max_iterations is not None:
     #     agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
@@ -122,15 +101,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg["seed"]
-    env_cfg.sim.device = (
-        args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    )
+    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # directory for logging into
     run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    log_root_path = os.path.abspath(
-        os.path.join("logs", "sb3_optim", args_cli.algo, args_cli.task)
-    )
+    log_root_path = os.path.abspath(os.path.join("logs", "sb3_optim", args_cli.algo, args_cli.task))
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     print(f"Exact experiment name requested from command line: {run_info}")
     log_dir = os.path.join(log_root_path, run_info)

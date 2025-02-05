@@ -228,7 +228,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             **hyperparams,
         )
     elif args_cli.algo == "ppo":
-        n_timesteps = int(3e7)
+        # n_timesteps = int(3e7)
+        n_timesteps = int(5e7)
         log_interval = 20
 
         hyperparams = dict(
@@ -311,34 +312,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if isinstance(env, VecNormalize):
         print("Saving normalization")
         env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
-
-    # import ipdb
-    # ipdb.set_trace()
-    # reset environment
-    # obs = env.reset()
-    # # obs = agent._last_obs
-    # current_rewards = np.zeros(args_cli.num_envs)
-    # current_returns = []
-    # # simulate environment
-    # while simulation_app.is_running():
-    #     # agent stepping
-    #     actions, _ = agent.predict(obs, deterministic=True)
-    #     # agent.policy.reset_noise()
-    #     # obs_tensor, _ = agent.policy.prepare_obs(obs)  # type: ignore[has-type]
-    #     # # actions, _, _ = agent.policy.predict_all(obs_tensor, agent.policy.noise_key)
-    #     # actions = agent.policy.forward(obs_tensor, deterministic=True)
-    #     # actions = np.clip(np.array(actions), agent.action_space.low, agent.action_space.high)
-
-    #     # env stepping
-    #     obs, rewards, dones, _ = env.step(actions)
-
-    #     current_rewards += rewards
-    #     current_returns = np.concatenate((current_returns, current_rewards[dones]))
-    #     current_rewards[dones] = 0.0
-    #     # Report performance
-    #     if len(current_returns) > 200:
-    #         print(f"Mean reward: {np.mean(current_returns):.2f} +/- {np.std(current_returns):.2f}")
-    #         current_returns = []
 
     # close the simulator
     env.close()
