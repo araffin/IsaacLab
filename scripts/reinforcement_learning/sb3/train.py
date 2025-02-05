@@ -162,13 +162,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         keep_info=not args_cli.no_info,
     )
 
-    # if args_cli.algo != "ppo":
-    #     env = RescaleActionWrapper(env, percent=3)
+    if args_cli.algo != "ppo":
+        env = RescaleActionWrapper(env, percent=3)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
     #     # env = RescaleActionWrapper(env, percent=3)
     # env = ClipActionWrapper(env, percent=3.0)
-    env = RescaleActionWrapper(env, percent=3.0)
+    # env = RescaleActionWrapper(env, percent=3.0)
 
     print(f"Action space: {env.action_space}")
 
@@ -195,7 +195,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         policy_kwargs={
             "optimizer_class": optax.adamw,
             "activation_fn": flax.linen.elu,
-            "net_arch": {"pi": [128], "qf": [256, 256]},
+            "net_arch": {"pi": [128, 128], "qf": [256, 256]},
             "n_critics": 2,
         },
         # learning_starts=10_000,
@@ -203,17 +203,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # normalize={"norm_obs": True, "norm_reward": False},
         # param_resets=[int(i * 1e7) for i in range(1, 10)],
     )
-    ppo_hyperparams = dict(
-        policy="MlpPolicy",
-        policy_kwargs=dict(
-            activation_fn=flax.linen.elu,
-            # net_arch=[512, 256, 128],
-            net_arch=[128, 128, 128],
-            layer_norm=True,
-        ),
-        learning_starts=1_000,
-    )
-    hyperparams = ppo_hyperparams
+    # ppo_hyperparams = dict(
+    #     policy="MlpPolicy",
+    #     policy_kwargs=dict(
+    #         activation_fn=flax.linen.elu,
+    #         # net_arch=[512, 256, 128],
+    #         net_arch=[128, 128, 128],
+    #         layer_norm=True,
+    #     ),
+    #     learning_starts=1_000,
+    # )
+    # hyperparams = ppo_hyperparams
+    hyperparams = simba_hyperparams
 
     log_interval = 100
     if args_cli.algo == "tqc":
@@ -222,6 +223,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             env=env,
             train_freq=5,
             # learning_rate=7e-4,
+            gamma=0.985,
             batch_size=512,
             # gradient_steps=min(env.num_envs, 256),
             gradient_steps=min(env.num_envs, 512),
