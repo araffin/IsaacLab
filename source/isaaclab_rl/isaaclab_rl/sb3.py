@@ -293,7 +293,8 @@ class Sb3VecEnvWrapper(VecEnv):
             return env_method(*method_args, indices=indices, **method_kwargs)
 
     def env_is_wrapped(self, wrapper_class, indices=None):  # noqa: D102
-        raise NotImplementedError("Checking if environment is wrapped is not supported.")
+        return [False]
+        # raise NotImplementedError("Checking if environment is wrapped is not supported.")
 
     def get_images(self):  # noqa: D102
         raise NotImplementedError("Getting images is not supported.")

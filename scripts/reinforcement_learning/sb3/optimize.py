@@ -2,6 +2,9 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+# ./isaaclab.sh -p scripts/reinforcement_learning/sb3/optimize.py --task Isaac-Velocity-Flat-Unitree-A1-v0
+#  --num_envs 2048 --headless --algo tqc --seed 3 --storage logs/sb3_tqc_flat_a1.log
+
 
 """Launch Isaac Sim Simulator first."""
 
@@ -18,7 +21,6 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Baselines3.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
 parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
@@ -94,7 +96,9 @@ class TimeoutCallback(BaseCallback):
         if not self.start_time:
             self.start_time = time.time()
 
-        return (time.time() - self.start_time) > self.timeout
+        if (time.time() - self.start_time) > self.timeout:
+            return False
+        return True
 
 
 def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
@@ -114,14 +118,14 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     # Display true values
     trial.set_user_attr("gamma", gamma)
 
-    network = "SimbaPolicy" if net_arch == "simba" else "MlpPolicy"
+    policy = "SimbaPolicy" if net_arch == "simba" else "MlpPolicy"
     net_arch = {"default": [256, 256], "medium": [128, 128, 128], "simba": {"pi": [128, 128], "qf": [256, 256]}}[
         net_arch
     ]
     activation_fn = {"elu": flax.linen.elu, "relu": flax.linen.relu, "gelu": flax.linen.gelu}[activation_fn]
 
     return {
-        "network": network,
+        "policy": policy,
         "train_freq": train_freq,
         "gradient_steps": gradient_steps,
         "batch_size": batch_size,
@@ -229,7 +233,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         # optimize for best perf after 5 minutes
         callback = TimeoutCallback(timeout=60 * 5, start_after=3000)
         agent.learn(total_timesteps=int(3e7), callback=callback)
-        mean_reward, _ = evaluate_policy(agent, env, n_eval_episodes=50)
+        mean_reward, _ = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
         del agent
         return mean_reward
 
