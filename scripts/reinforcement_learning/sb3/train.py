@@ -4,13 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 1024 --fast
 
-
-"""Script to train RL agent with Stable Baselines3.
-
-Since Stable-Baselines3 does not support buffers living on GPU directly,
-we recommend using smaller number of environments. Otherwise,
-there will be significant overhead in GPU->CPU transfer.
-"""
+"""Script to train RL agent with Stable Baselines3."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -156,11 +150,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(
-        env,
-        fast_variant=args_cli.fast,
-        keep_info=not args_cli.no_info,
-    )
+    env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
 
     if args_cli.algo != "ppo":
         env = RescaleActionWrapper(env, percent=3)
@@ -298,7 +288,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     print(f"{env.num_envs=}")
     # callbacks for agent
-    checkpoint_callback = CheckpointCallback(save_freq=2000, save_path=log_dir, name_prefix="model", verbose=2)
+    checkpoint_callback = CheckpointCallback(
+        save_freq=2000,
+        save_path=log_dir,
+        name_prefix="model",
+        verbose=2,
+        save_vecnormalize=True,
+    )
     # checkpoint_callback = None
     # train the agent
     with contextlib.suppress(KeyboardInterrupt):
@@ -313,6 +309,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent.save(os.path.join(log_dir, "model"))
     print("Saving to:")
     print(os.path.join(log_dir, "model"))
+
+    if isinstance(env, VecNormalize):
+        print("Saving normalization")
+        env.save(os.path.join(log_dir, "vec_normalize"))
 
     # close the simulator
     env.close()

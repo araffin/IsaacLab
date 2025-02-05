@@ -2,8 +2,8 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-# ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 \
-#  --num_envs 50 --use_last_checkpoint
+# ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py
+# --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 50 --algo tqc --fast --use_last_checkpoint
 
 
 """Script to play a checkpoint if an RL agent from Stable-Baselines3."""
@@ -11,6 +11,8 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import logging
+from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
@@ -23,6 +25,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
     "--use_pretrained_checkpoint",
@@ -35,6 +38,7 @@ parser.add_argument(
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument("--fast", action="store_true", default=False, help="Faster correct training but not extras logged.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -78,7 +82,7 @@ def main():
     agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
 
     # directory for logging into
-    log_root_path = os.path.join("logs", "sb3", args_cli.task)
+    log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.algo, args_cli.task))
     log_root_path = os.path.abspath(log_root_path)
     # checkpoint and log_dir stuff
     if args_cli.use_pretrained_checkpoint:
@@ -87,6 +91,7 @@ def main():
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return
     elif args_cli.checkpoint is None:
+        # FIXME: last checkpoint doesn't seem to really use the last one'
         if args_cli.use_last_checkpoint:
             checkpoint = "model_.*.zip"
         else:
@@ -118,32 +123,46 @@ def main():
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env)
+    env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast)
 
-    env = RescaleActionWrapper(env, percent=2.5)
+    if args_cli.algo != "ppo":
+        env = RescaleActionWrapper(env, percent=3)
 
+    vec_norm_path = checkpoint_path.replace("model_", "model_vecnormalize_").replace(".zip", ".pkl")
+    vec_norm_path = Path(vec_norm_path)
+
+    logging.getLogger().setLevel(logging.INFO)
     # normalize environment (if needed)
-    if "normalize_input" in agent_cfg:
+    if vec_norm_path.exists() and False:
+        print(f"Loading saved normalization: {vec_norm_path}")
+        env = VecNormalize.load(vec_norm_path, env)
+        #  do not update them at test time
+        env.training = False
+        # reward normalization is not needed at test time
+        env.norm_reward = False
+    elif "normalize_input" in agent_cfg:
+        print("Relearning normalization")
         env = VecNormalize(
             env,
             training=True,
             norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
-            norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
             clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
-            gamma=agent_cfg["gamma"],
-            clip_reward=np.inf,
         )
 
     # create agent from stable baselines
     print(f"Loading checkpoint from: {checkpoint_path}")
-    # agent = PPO.load(checkpoint_path, env, print_system_info=True)
-    agent = sbx.TQC.load(checkpoint_path, env, print_system_info=True)
+
+    algo_class = {"ppo": sbx.PPO, "sac": sbx.SAC, "tqc": sbx.TQC}[args_cli.algo]
+
+    agent = algo_class.load(checkpoint_path, env, print_system_info=True)
 
     dt = env.unwrapped.physics_dt
 
     # reset environment
     obs = env.reset()
     timestep = 0
+    current_rewards = np.zeros(args_cli.num_envs)
+    current_returns = []
     # simulate environment
     while simulation_app.is_running():
         start_time = time.time()
@@ -152,7 +171,16 @@ def main():
             # agent stepping
             actions, _ = agent.predict(obs, deterministic=True)
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, rewards, dones, _ = env.step(actions)
+
+        current_rewards += rewards
+        current_returns = np.concatenate((current_returns, current_rewards[dones]))
+        current_rewards[dones] = 0.0
+        # Report performance
+        if len(current_returns) > 100:
+            print(f"Mean reward: {np.mean(current_returns):.2f} +/- {np.std(current_returns):.2f}")
+            current_returns = []
+
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
