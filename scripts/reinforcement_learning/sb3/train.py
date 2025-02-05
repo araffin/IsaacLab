@@ -154,8 +154,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     if args_cli.algo != "ppo":
         env = RescaleActionWrapper(env, percent=3)
-    # else:
-    #     env = ClipActionWrapper(env, percent=3)
+    else:
+        env = ClipActionWrapper(env, percent=3)
     #     # env = RescaleActionWrapper(env, percent=3)
     # env = ClipActionWrapper(env, percent=3.0)
     # env = RescaleActionWrapper(env, percent=3.0)
@@ -243,8 +243,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # import torch
         # import stable_baselines3 as sb3
 
-        # # # import warnings
-        # # # warnings.simplefilter()
         # hyperparams = dict(
         #     policy_kwargs=dict(
         #         activation_fn=torch.nn.ELU,
@@ -312,7 +310,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     if isinstance(env, VecNormalize):
         print("Saving normalization")
-        env.save(os.path.join(log_dir, "vec_normalize"))
+        env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
+
+    # import ipdb
+    # ipdb.set_trace()
+    # reset environment
+    # obs = env.reset()
+    # current_rewards = np.zeros(args_cli.num_envs)
+    # current_returns = []
+    # # simulate environment
+    # while simulation_app.is_running():
+    #     # agent stepping
+    #     actions, _ = agent.predict(obs, deterministic=True)
+    #     # env stepping
+    #     obs, rewards, dones, _ = env.step(actions)
+
+    #     current_rewards += rewards
+    #     current_returns = np.concatenate((current_returns, current_rewards[dones]))
+    #     current_rewards[dones] = 0.0
+    #     # Report performance
+    #     if len(current_returns) > 200:
+    #         print(f"Mean reward: {np.mean(current_returns):.2f} +/- {np.std(current_returns):.2f}")
+    #         current_returns = []
 
     # close the simulator
     env.close()

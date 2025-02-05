@@ -60,7 +60,7 @@ import time
 import torch
 
 import sbx
-from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
+from isaaclab_rl.sb3 import ClipActionWrapper, RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
 
 # from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
@@ -127,13 +127,17 @@ def main():
 
     if args_cli.algo != "ppo":
         env = RescaleActionWrapper(env, percent=3)
+    else:
+        env = ClipActionWrapper(env, percent=3)
 
-    vec_norm_path = checkpoint_path.replace("model_", "model_vecnormalize_").replace(".zip", ".pkl")
+    print(f"Action space: {env.action_space}")
+
+    vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")
     vec_norm_path = Path(vec_norm_path)
 
     logging.getLogger().setLevel(logging.INFO)
     # normalize environment (if needed)
-    if vec_norm_path.exists() and False:
+    if vec_norm_path.exists():
         print(f"Loading saved normalization: {vec_norm_path}")
         env = VecNormalize.load(vec_norm_path, env)
         #  do not update them at test time
@@ -152,9 +156,13 @@ def main():
     # create agent from stable baselines
     print(f"Loading checkpoint from: {checkpoint_path}")
 
+    # import stable_baselines3 as sb3
     algo_class = {"ppo": sbx.PPO, "sac": sbx.SAC, "tqc": sbx.TQC}[args_cli.algo]
 
     agent = algo_class.load(checkpoint_path, env, print_system_info=True)
+
+    # import ipdb
+    # ipdb.set_trace()
 
     dt = env.unwrapped.physics_dt
 
@@ -162,7 +170,9 @@ def main():
     obs = env.reset()
     timestep = 0
     current_rewards = np.zeros(args_cli.num_envs)
-    current_returns = []
+    current_lengths = np.zeros(args_cli.num_envs)
+    log_returns = []
+    log_length = []
     # simulate environment
     while simulation_app.is_running():
         start_time = time.time()
@@ -174,12 +184,17 @@ def main():
             obs, rewards, dones, _ = env.step(actions)
 
         current_rewards += rewards
-        current_returns = np.concatenate((current_returns, current_rewards[dones]))
+        current_lengths += 1
+        log_returns = np.concatenate((log_returns, current_rewards[dones]))
+        log_length = np.concatenate((log_length, current_lengths[dones]))
         current_rewards[dones] = 0.0
+        current_lengths[dones] = 0.0
         # Report performance
-        if len(current_returns) > 100:
-            print(f"Mean reward: {np.mean(current_returns):.2f} +/- {np.std(current_returns):.2f}")
-            current_returns = []
+        if len(log_returns) > 200:
+            print(f"Mean reward: {np.mean(log_returns):.2f} +/- {np.std(log_returns):.2f}")
+            print(f"Mean length: {np.mean(log_length):.2f} +/- {np.std(log_length):.2f}")
+            log_returns = []
+            log_length = []
 
         if args_cli.video:
             timestep += 1
