@@ -185,6 +185,8 @@ def main():
             # env stepping
             obs, rewards, dones, _ = env.step(actions)
 
+        # print(np.max(actions), np.min(actions))
+
         current_rewards += rewards
         current_lengths += 1
         log_returns = np.concatenate((log_returns, current_rewards[dones]))
