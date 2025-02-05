@@ -153,7 +153,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
 
     if args_cli.algo != "ppo":
-        env = RescaleActionWrapper(env, percent=3)
+        env = RescaleActionWrapper(env, percent=5)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
     #     # env = RescaleActionWrapper(env, percent=3)
@@ -180,7 +180,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     simba_hyperparams = dict(
         policy="SimbaPolicy",
         # batch_size=256,
-        buffer_size=500_000,
+        buffer_size=800_000,
         # learning_rate=3e-4,
         policy_kwargs={
             "optimizer_class": optax.adamw,
@@ -226,11 +226,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             # top_quantiles_to_drop_per_net=5,
             # **simba_hyperparams,
             **hyperparams,
+            tensorboard_log=log_root_path,
         )
     elif args_cli.algo == "ppo":
         # n_timesteps = int(3e7)
         n_timesteps = int(5e7)
         log_interval = 20
+        agent_cfg["tensorboard_log"] = log_root_path
 
         hyperparams = dict(
             policy_kwargs=dict(
@@ -279,6 +281,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 activation_fn=flax.linen.elu,
                 net_arch=[128, 128, 128],
             ),
+            tensorboard_log=log_root_path,
             # param_resets=[int(i * 2e7) for i in range(1, 10)],
         )
     # configure the logger
