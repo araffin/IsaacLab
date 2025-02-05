@@ -127,8 +127,8 @@ def main():
 
     if args_cli.algo != "ppo":
         env = RescaleActionWrapper(env, percent=3)
-    else:
-        env = ClipActionWrapper(env, percent=3)
+    # else:
+    #     env = ClipActionWrapper(env, percent=3)
 
     print(f"Action space: {env.action_space}")
 
@@ -160,6 +160,8 @@ def main():
     algo_class = {"ppo": sbx.PPO, "sac": sbx.SAC, "tqc": sbx.TQC}[args_cli.algo]
 
     agent = algo_class.load(checkpoint_path, env, print_system_info=True)
+
+    # agent.policy._squash_output = False
 
     # import ipdb
     # ipdb.set_trace()

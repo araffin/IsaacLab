@@ -154,8 +154,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     if args_cli.algo != "ppo":
         env = RescaleActionWrapper(env, percent=3)
-    else:
-        env = ClipActionWrapper(env, percent=3)
+    # else:
+    #     env = ClipActionWrapper(env, percent=3)
     #     # env = RescaleActionWrapper(env, percent=3)
     # env = ClipActionWrapper(env, percent=3.0)
     # env = RescaleActionWrapper(env, percent=3.0)
@@ -316,12 +316,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # ipdb.set_trace()
     # reset environment
     # obs = env.reset()
+    # # obs = agent._last_obs
     # current_rewards = np.zeros(args_cli.num_envs)
     # current_returns = []
     # # simulate environment
     # while simulation_app.is_running():
     #     # agent stepping
     #     actions, _ = agent.predict(obs, deterministic=True)
+    #     # agent.policy.reset_noise()
+    #     # obs_tensor, _ = agent.policy.prepare_obs(obs)  # type: ignore[has-type]
+    #     # # actions, _, _ = agent.policy.predict_all(obs_tensor, agent.policy.noise_key)
+    #     # actions = agent.policy.forward(obs_tensor, deterministic=True)
+    #     # actions = np.clip(np.array(actions), agent.action_space.low, agent.action_space.high)
+
     #     # env stepping
     #     obs, rewards, dones, _ = env.step(actions)
 
