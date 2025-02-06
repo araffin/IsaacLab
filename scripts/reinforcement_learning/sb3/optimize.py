@@ -10,6 +10,7 @@
 
 import argparse
 import contextlib
+import gc
 import signal
 import sys
 from pathlib import Path
@@ -235,7 +236,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         agent.learn(total_timesteps=int(3e7), callback=callback)
         trial.set_user_attr("num_timesteps", agent.num_timesteps)
         mean_reward, _ = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
+        # Free memory
+        del agent.replay_buffer
         del agent
+        del callback
+        del hyperparams
+        gc.collect()
+        gc.collect()
         return mean_reward
 
     with contextlib.suppress(KeyboardInterrupt):
