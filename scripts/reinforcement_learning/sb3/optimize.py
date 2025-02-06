@@ -103,18 +103,18 @@ class TimeoutCallback(BaseCallback):
 
 
 def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
-    """Sampler for A2C hyperparameters."""
+    """Sampler for TQC hyperparameters."""
     one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.001, 0.02, log=True)
-    learning_rate = trial.suggest_float("learning_rate", 1e-5, 0.01, log=True)
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 0.002, log=True)
     # qf_learning_rate = trial.suggest_float("qf_learning_rate", 1e-5, 0.01, log=True)
-    ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 1.0, log=True)
+    ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.5, log=True)
     batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
     net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba"])
-    activation_fn = trial.suggest_categorical("activation_fn", ["elu", "relu", "gelu"])
-    train_freq = trial.suggest_int("train_freq", 1, 20)
+    # activation_fn = trial.suggest_categorical("activation_fn", ["elu", "relu", "gelu"])
+    train_freq = trial.suggest_int("train_freq", 1, 15)
     gradient_steps = trial.suggest_categorical("gradient_steps", [64, 128, 256, 512])
     learning_starts = trial.suggest_categorical("learning_starts", [100, 1000, 2000])
-    policy_delay = trial.suggest_int("policy_delay", 1, 64)
+    policy_delay = trial.suggest_int("policy_delay", 1, 30)
 
     # Display true values
     trial.set_user_attr("gamma", 1 - one_minus_gamma)
@@ -130,7 +130,7 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
         "policy_delay": policy_delay,
         "ent_coef_init": ent_coef_init,
         "net_arch": net_arch,
-        "activation_fn": activation_fn,
+        # "activation_fn": activation_fn,
         # "optimizer_class": optax.adamw,
     })
 
@@ -240,12 +240,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         agent = sbx.TQC(env=env, **hyperparams)
         # Start after warmup
         # optimize for best perf after 6 minutes
-        callback = TimeoutCallback(timeout=60 * 6, start_after=3000)
+        callback = TimeoutCallback(timeout=60 * 6, start_after=3_000)
         agent.learn(total_timesteps=int(3e7), callback=callback)
         trial.set_user_attr("num_timesteps", agent.num_timesteps)
-        mean_reward, _ = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
+        mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
+        trial.set_user_attr("std_reward", std_reward)
+
         # Free memory
         del agent.replay_buffer
+        del agent.policy
         del agent
         del callback
         del hyperparams

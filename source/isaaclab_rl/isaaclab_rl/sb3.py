@@ -483,19 +483,20 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
             "qf": [256, 256],
         },
     }[net_arch]
-    activation_fn = {
-        "elu": flax.linen.elu,
-        "relu": flax.linen.relu,
-        "gelu": flax.linen.gelu,
-    }[sampled_params["activation_fn"]]
-    del hyperparams["activation_fn"]
+    # activation_fn = {
+    #     "elu": flax.linen.elu,
+    #     "relu": flax.linen.relu,
+    #     "gelu": flax.linen.gelu,
+    # }[sampled_params["activation_fn"]]
+    if "activation_fn" in hyperparams:
+        del hyperparams["activation_fn"]
 
     return {
         "policy": policy,
         "buffer_size": 800_000,
         "policy_kwargs": {
             "net_arch": net_arch,
-            "activation_fn": activation_fn,
+            "activation_fn": flax.linen.elu,
             "optimizer_class": optax.adamw,
         },
         **hyperparams,
