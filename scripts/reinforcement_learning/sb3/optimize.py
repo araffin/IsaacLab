@@ -34,6 +34,8 @@ parser.add_argument(
     "--storage", help="Database storage path if distributed optimization should be used", type=str, default=None
 )
 parser.add_argument("--n-trials", help="Max number of trials for this process", type=int, default=1000)
+parser.add_argument("-name", "--study-name", help="Study name for distributed optimization", type=str, default=None)
+
 # parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -61,13 +63,11 @@ import gymnasium as gym
 import random
 import time
 
-import flax
-import optax
 import optuna
 import sbx
 
 # from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper
+from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, to_hyperparams
 from optuna.samplers import TPESampler
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -104,7 +104,7 @@ class TimeoutCallback(BaseCallback):
 
 def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     """Sampler for A2C hyperparameters."""
-    gamma = 1.0 - trial.suggest_float("one_minus_gamma", 0.001, 0.02, log=True)
+    one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.001, 0.02, log=True)
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 0.01, log=True)
     qf_learning_rate = trial.suggest_float("qf_learning_rate", 1e-5, 0.01, log=True)
     ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 1.0, log=True)
@@ -117,31 +117,22 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     policy_delay = trial.suggest_int("policy_delay", 1, 64)
 
     # Display true values
-    trial.set_user_attr("gamma", gamma)
+    trial.set_user_attr("gamma", 1 - one_minus_gamma)
 
-    policy = "SimbaPolicy" if net_arch == "simba" else "MlpPolicy"
-    net_arch = {"default": [256, 256], "medium": [128, 128, 128], "simba": {"pi": [128, 128], "qf": [256, 256]}}[
-        net_arch
-    ]
-    activation_fn = {"elu": flax.linen.elu, "relu": flax.linen.relu, "gelu": flax.linen.gelu}[activation_fn]
-
-    return {
-        "policy": policy,
+    return to_hyperparams({
         "train_freq": train_freq,
         "gradient_steps": gradient_steps,
         "batch_size": batch_size,
         "learning_starts": learning_starts,
-        "gamma": gamma,
+        "one_minus_gamma": one_minus_gamma,
         "learning_rate": learning_rate,
         "qf_learning_rate": qf_learning_rate,
         "policy_delay": policy_delay,
-        "ent_coef": f"auto_{ent_coef_init}",
-        "policy_kwargs": {
-            "net_arch": net_arch,
-            "activation_fn": activation_fn,
-            "optimizer_class": optax.adamw,
-        },
-    }
+        "ent_coef_init": ent_coef_init,
+        "net_arch": net_arch,
+        "activation_fn": activation_fn,
+        # "optimizer_class": optax.adamw,
+    })
 
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
@@ -212,13 +203,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         # Create folder if it doesn't exist
         Path(storage).parent.mkdir(parents=True, exist_ok=True)
         storage = optuna.storages.JournalStorage(
-            optuna.storages.JournalFileStorage(args_cli.storage),
+            optuna.storages.journal.JournalFileBackend(args_cli.storage),
         )
 
-    study_name = f"{args_cli.algo}_{args_cli.task}"
     sampler = TPESampler(n_startup_trials=N_STARTUP_TRIALS, multivariate=True)
     study = optuna.create_study(
-        study_name=study_name,
+        study_name=args_cli.study_name,
         storage=storage,
         sampler=sampler,
         pruner=None,

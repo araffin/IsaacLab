@@ -443,3 +443,59 @@ class ClipActionWrapper(VecEnvWrapper):
 
     def step_wait(self):
         return self.venv.step_wait()
+
+
+def load_trial(storage: str, study_name: str, trial_id: int | None = None) -> dict[str, Any]:
+    import optuna
+
+    optuna_storage = optuna.storages.JournalStorage(optuna.storages.journal.JournalFileBackend(storage))
+    study = optuna.load_study(storage=optuna_storage, study_name=study_name)
+    if trial_id is not None:
+        params = study.trials[trial_id].params
+    else:
+        params = study.best_trial.params
+
+    return to_hyperparams(params)
+
+
+def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
+    import flax
+    import optax
+
+    hyperparams = sampled_params.copy()
+
+    if "ent_coef_init" in hyperparams:
+        hyperparams["ent_coef"] = f"auto_{hyperparams['ent_coef_init']}"
+        del hyperparams["ent_coef_init"]
+
+    hyperparams["gamma"] = 1 - sampled_params["one_minus_gamma"]
+    del hyperparams["one_minus_gamma"]
+
+    net_arch = sampled_params["net_arch"]
+    policy = "SimbaPolicy" if net_arch == "simba" else "MlpPolicy"
+    del hyperparams["net_arch"]
+
+    net_arch = {
+        "default": [256, 256],
+        "medium": [128, 128, 128],
+        "simba": {
+            "pi": [128, 128],
+            "qf": [256, 256],
+        },
+    }[net_arch]
+    activation_fn = {
+        "elu": flax.linen.elu,
+        "relu": flax.linen.relu,
+        "gelu": flax.linen.gelu,
+    }[sampled_params["activation_fn"]]
+    del hyperparams["activation_fn"]
+
+    return {
+        "policy": policy,
+        "policy_kwargs": {
+            "net_arch": net_arch,
+            "activation_fn": activation_fn,
+            "optimizer_class": optax.adamw,
+        },
+        **hyperparams,
+    }

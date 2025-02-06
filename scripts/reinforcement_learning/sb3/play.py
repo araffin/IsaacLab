@@ -60,7 +60,7 @@ import time
 import torch
 
 import sbx
-from isaaclab_rl.sb3 import ClipActionWrapper, RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
+from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
 
 # from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize

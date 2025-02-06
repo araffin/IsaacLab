@@ -12,6 +12,7 @@ import argparse
 import contextlib
 import signal
 import sys
+from pprint import pprint
 
 from isaaclab.app import AppLauncher
 
@@ -29,6 +30,11 @@ parser.add_argument("--fast", action="store_true", default=False, help="Faster c
 parser.add_argument(
     "--no-info", action="store_true", default=False, help="Fastest and incorrect training but no statistics."
 )
+parser.add_argument(
+    "--storage", help="Database storage path if distributed optimization should be used", type=str, default=None
+)
+parser.add_argument("-name", "--study-name", help="Study name when loading Optuna results", type=str)
+parser.add_argument("-id", "--trial-id", help="Trial id to load, otherwise loading best trial", type=int)
 # parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -73,7 +79,7 @@ import optax
 import sbx
 
 # from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import ClipActionWrapper, RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
+from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, load_trial, process_sb3_cfg
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 # from stable_baselines3.common.logger import configure
@@ -192,7 +198,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         learning_starts=1_000,
         # normalize={"norm_obs": True, "norm_reward": False},
         # param_resets=[int(i * 1e7) for i in range(1, 10)],
+        train_freq=5,
+        # learning_rate=7e-4,
+        gamma=0.985,
+        batch_size=512,
+        # gradient_steps=min(env.num_envs, 256),
+        gradient_steps=min(env.num_envs, 512),
+        policy_delay=10,
+        # ent_coef=0.001,
+        ent_coef="auto_0.01",
+        # target_entropy=-10.0,
+        # tau=0.008,
+        # top_quantiles_to_drop_per_net=5,
     )
+    if args_cli.storage and args_cli.study_name:
+        print("Loading from Optuna study...")
+        hyperparams = load_trial(args_cli.storage, args_cli.study_name, args_cli.trial_id)
+        # Sort for printing
+        hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
+        pprint(hyperparams)
+    else:
+        hyperparams = simba_hyperparams
+
     # ppo_hyperparams = dict(
     #     policy="MlpPolicy",
     #     policy_kwargs=dict(
@@ -204,27 +231,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     #     learning_starts=1_000,
     # )
     # hyperparams = ppo_hyperparams
-    hyperparams = simba_hyperparams
 
     log_interval = 100
     if args_cli.algo == "tqc":
         n_timesteps = int(3e7)
         agent = sbx.TQC(
             env=env,
-            train_freq=5,
-            # learning_rate=7e-4,
-            gamma=0.985,
-            batch_size=512,
-            # gradient_steps=min(env.num_envs, 256),
-            gradient_steps=min(env.num_envs, 512),
-            policy_delay=10,
             verbose=1,
-            # ent_coef=0.001,
-            ent_coef="auto_0.01",
-            # target_entropy=-10.0,
-            # tau=0.008,
-            # top_quantiles_to_drop_per_net=5,
-            # **simba_hyperparams,
             **hyperparams,
             tensorboard_log=log_root_path,
         )
