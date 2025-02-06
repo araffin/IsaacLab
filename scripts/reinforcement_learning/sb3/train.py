@@ -159,7 +159,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
 
     if args_cli.algo != "ppo":
-        env = RescaleActionWrapper(env, percent=5)
+        # For Rough:
+        # env = RescaleActionWrapper(env, percent=5)
+        env = RescaleActionWrapper(env, percent=3)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
     #     # env = RescaleActionWrapper(env, percent=3)
@@ -214,12 +216,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.storage and args_cli.study_name:
         print("Loading from Optuna study...")
         hyperparams = load_trial(args_cli.storage, args_cli.study_name, args_cli.trial_id)
-        # Sort for printing
-        hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
-        pprint(hyperparams)
     else:
         hyperparams = simba_hyperparams
 
+    # Sort for printing
+    hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
+    pprint(hyperparams)
     # ppo_hyperparams = dict(
     #     policy="MlpPolicy",
     #     policy_kwargs=dict(
@@ -239,13 +241,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             env=env,
             verbose=1,
             **hyperparams,
-            tensorboard_log=log_root_path,
+            tensorboard_log=log_dir,
         )
     elif args_cli.algo == "ppo":
         # n_timesteps = int(3e7)
         n_timesteps = int(5e7)
         log_interval = 20
-        agent_cfg["tensorboard_log"] = log_root_path
+        agent_cfg["tensorboard_log"] = log_dir
 
         hyperparams = dict(
             policy_kwargs=dict(
@@ -294,7 +296,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 activation_fn=flax.linen.elu,
                 net_arch=[128, 128, 128],
             ),
-            tensorboard_log=log_root_path,
+            tensorboard_log=log_dir,
             # param_resets=[int(i * 2e7) for i in range(1, 10)],
         )
     # configure the logger

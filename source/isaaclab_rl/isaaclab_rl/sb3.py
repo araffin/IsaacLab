@@ -492,6 +492,7 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "policy": policy,
+        "buffer_size": 800_000,
         "policy_kwargs": {
             "net_arch": net_arch,
             "activation_fn": activation_fn,
