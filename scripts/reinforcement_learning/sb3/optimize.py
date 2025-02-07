@@ -255,22 +255,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     #     },
     #     user_attrs={"memo": "best known, manually tuned"},
     # )
-    from isaaclab_rl.sb3 import load_trial
+    # from isaaclab_rl.sb3 import load_trial
 
-    # Best trials
-    trial_ids = [0, 56, 120, 149, 167, 172]
-    for trial_id in trial_ids:
-        hyperparams = load_trial("logs/sb3_tqc_flat_a1.log", "tqc_flat_a1_2", trial_id=trial_id, convert=False)
-        # Convert search space
-        for key in ["learning_starts"]:
-            del hyperparams[key]
-        hyperparams["net_arch_complexity"] = {
-            "default": 0,
-            "medium": 1,
-            "simba": 2,
-        }[hyperparams["net_arch"]]
-        del hyperparams["net_arch"]
-        study.enqueue_trial(hyperparams, user_attrs={"memo": "from previous optim"})
+    # # Best trials
+    # trial_ids = [0, 56, 120, 149, 167, 172]
+    # for trial_id in trial_ids:
+    #     hyperparams = load_trial("logs/sb3_tqc_flat_a1.log", "tqc_flat_a1_2", trial_id=trial_id, convert=False)
+    #     # Convert search space
+    #     for key in ["learning_starts"]:
+    #         del hyperparams[key]
+    #     hyperparams["net_arch_complexity"] = {
+    #         "default": 0,
+    #         "medium": 1,
+    #         "simba": 2,
+    #     }[hyperparams["net_arch"]]
+    #     del hyperparams["net_arch"]
+    #     study.enqueue_trial(hyperparams, user_attrs={"memo": "from previous optim"})
 
     def objective(trial: optuna.Trial) -> float:
         # TODO: add support for PPO/SAC
