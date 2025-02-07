@@ -445,7 +445,7 @@ class ClipActionWrapper(VecEnvWrapper):
         return self.venv.step_wait()
 
 
-def load_trial(storage: str, study_name: str, trial_id: int | None = None) -> dict[str, Any]:
+def load_trial(storage: str, study_name: str, trial_id: int | None = None, convert: bool = True) -> dict[str, Any]:
     import optuna
 
     optuna_storage = optuna.storages.JournalStorage(optuna.storages.journal.JournalFileBackend(storage))
@@ -455,7 +455,9 @@ def load_trial(storage: str, study_name: str, trial_id: int | None = None) -> di
     else:
         params = study.best_trial.params
 
-    return to_hyperparams(params)
+    if convert:
+        return to_hyperparams(params)
+    return params
 
 
 def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:

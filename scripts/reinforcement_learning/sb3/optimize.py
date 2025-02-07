@@ -216,34 +216,39 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         load_if_exists=True,
     )
 
-    study.enqueue_trial(
-        {
-            "train_freq": 5,
-            "gradient_steps": 512,
-            "batch_size": 512,
-            "learning_starts": 1_000,
-            "one_minus_gamma": 1 - 0.985,
-            "learning_rate": 3e-4,
-            # "qf_learning_rate": qf_learning_rate,
-            "policy_delay": 10,
-            "ent_coef_init": 0.01,
-            "net_arch": "simba",
-            "activation_fn": "elu",
-            # "optimizer_class": optax.adamw,
-        },
-        user_attrs={"memo": "best known, manually tuned"},
-    )
+    # study.enqueue_trial(
+    #     {
+    #         "train_freq": 5,
+    #         "gradient_steps": 512,
+    #         "batch_size": 512,
+    #         "learning_starts": 1_000,
+    #         "one_minus_gamma": 1 - 0.985,
+    #         "learning_rate": 3e-4,
+    #         # "qf_learning_rate": qf_learning_rate,
+    #         "policy_delay": 10,
+    #         "ent_coef_init": 0.01,
+    #         "net_arch": "simba",
+    #         "activation_fn": "elu",
+    #         # "optimizer_class": optax.adamw,
+    #     },
+    #     user_attrs={"memo": "best known, manually tuned"},
+    # )
+    # from isaaclab_rl.sb3 import load_trial
+    # hyperparams = load_trial("logs/sb3_tqc_flat_a1.log", "tqc_flat_a1_2", trial_id=56, convert=False)
+    # hyperparams["gradient_steps"] = 512
+    # study.enqueue_trial(hyperparams, user_attrs={"memo": "manually tuned"})
 
     def objective(trial: optuna.Trial) -> float:
         # TODO: add support for PPO/SAC
         hyperparams = sample_tqc_params(trial)
+        env.seed(args_cli.seed)
         agent = sbx.TQC(env=env, **hyperparams)
         # Start after warmup
         # optimize for best perf after 6 minutes
         callback = TimeoutCallback(timeout=60 * 6, start_after=3_000)
         agent.learn(total_timesteps=int(3e7), callback=callback)
         trial.set_user_attr("num_timesteps", agent.num_timesteps)
-        mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
+        mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=250, warn=False)
         trial.set_user_attr("std_reward", std_reward)
 
         # Free memory
