@@ -473,9 +473,14 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
     hyperparams["gamma"] = 1 - sampled_params["one_minus_gamma"]
     del hyperparams["one_minus_gamma"]
 
-    net_arch = sampled_params["net_arch"]
+    if "net_arch_complexity" in sampled_params:
+        net_arch = ["default", "medium", "simba"][sampled_params["net_arch_complexity"]]
+        del hyperparams["net_arch_complexity"]
+    else:
+        net_arch = sampled_params["net_arch"]
+        del hyperparams["net_arch"]
+
     policy = "SimbaPolicy" if net_arch == "simba" else "MlpPolicy"
-    del hyperparams["net_arch"]
 
     net_arch = {
         "default": [256, 256],
@@ -492,10 +497,13 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
     # }[sampled_params["activation_fn"]]
     if "activation_fn" in hyperparams:
         del hyperparams["activation_fn"]
+    if "learning_starts" in hyperparams:
+        del hyperparams["learning_starts"]
 
     return {
         "policy": policy,
         "buffer_size": 800_000,
+        "learning_starts": 2_000,
         "policy_kwargs": {
             "net_arch": net_arch,
             "activation_fn": flax.linen.elu,

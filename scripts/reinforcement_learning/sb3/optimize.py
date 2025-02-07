@@ -35,7 +35,14 @@ parser.add_argument(
 )
 parser.add_argument("--n-trials", help="Max number of trials for this process", type=int, default=1000)
 parser.add_argument("-name", "--study-name", help="Study name for distributed optimization", type=str, default=None)
-
+parser.add_argument(
+    "--sampler",
+    help="Sampler to use when optimizing hyperparameters",
+    type=str,
+    default="tpe",
+    choices=["random", "tpe", "cmaes"],
+)
+parser.add_argument("--pop-size", help="Initial population size for CMAES", type=int, default=10)
 # parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -68,7 +75,7 @@ import sbx
 
 # from stable_baselines3 import PPO
 from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, to_hyperparams
-from optuna.samplers import TPESampler
+from optuna.samplers import CmaEsSampler, RandomSampler, TPESampler
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
@@ -104,16 +111,20 @@ class TimeoutCallback(BaseCallback):
 
 def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     """Sampler for TQC hyperparameters."""
-    one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.001, 0.02, log=True)
-    learning_rate = trial.suggest_float("learning_rate", 1e-5, 0.002, log=True)
+    one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.005, 0.02, log=True)
+    learning_rate = trial.suggest_float("learning_rate", 5e-5, 0.002, log=True)
     # qf_learning_rate = trial.suggest_float("qf_learning_rate", 1e-5, 0.01, log=True)
-    ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.5, log=True)
-    batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
-    net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba"])
+    ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.1, log=True)
+    # batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
+    batch_size = trial.suggest_int("batch_size", 128, 1024, log=True)
+    # net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba"])
+    # Use int to be able to use CMA-ES
+    net_arch_complexity = trial.suggest_int("net_arch_complexity", 0, 2)
     # activation_fn = trial.suggest_categorical("activation_fn", ["elu", "relu", "gelu"])
     train_freq = trial.suggest_int("train_freq", 1, 15)
-    gradient_steps = trial.suggest_categorical("gradient_steps", [64, 128, 256, 512])
-    learning_starts = trial.suggest_categorical("learning_starts", [100, 1000, 2000])
+    gradient_steps = trial.suggest_int("gradient_steps", 128, 1024)
+    # gradient_steps = trial.suggest_categorical("gradient_steps", [64, 128, 256, 512])
+    # learning_starts = trial.suggest_categorical("learning_starts", [100, 1000, 2000])
     policy_delay = trial.suggest_int("policy_delay", 1, 30)
 
     # Display true values
@@ -123,13 +134,13 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
         "train_freq": train_freq,
         "gradient_steps": gradient_steps,
         "batch_size": batch_size,
-        "learning_starts": learning_starts,
+        # "learning_starts": learning_starts,
         "one_minus_gamma": one_minus_gamma,
         "learning_rate": learning_rate,
         # "qf_learning_rate": qf_learning_rate,
         "policy_delay": policy_delay,
         "ent_coef_init": ent_coef_init,
-        "net_arch": net_arch,
+        "net_arch_complexity": net_arch_complexity,
         # "activation_fn": activation_fn,
         # "optimizer_class": optax.adamw,
     })
@@ -206,7 +217,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
             optuna.storages.journal.JournalFileBackend(args_cli.storage),
         )
 
-    sampler = TPESampler(n_startup_trials=N_STARTUP_TRIALS, multivariate=True)
+    # Select the sampler, can be random, TPESampler, CMAES, ...
+    sampler = {
+        "tpe": TPESampler(n_startup_trials=N_STARTUP_TRIALS, multivariate=True, seed=args_cli.seed),
+        "cmaes": CmaEsSampler(
+            seed=args_cli.seed,
+            restart_strategy="bipop",
+            popsize=args_cli.pop_size,
+            n_startup_trials=N_STARTUP_TRIALS,
+        ),
+        "random": RandomSampler(seed=args_cli.seed),
+    }[args_cli.sampler]
+
     study = optuna.create_study(
         study_name=args_cli.study_name,
         storage=storage,
@@ -233,10 +255,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     #     },
     #     user_attrs={"memo": "best known, manually tuned"},
     # )
-    # from isaaclab_rl.sb3 import load_trial
-    # hyperparams = load_trial("logs/sb3_tqc_flat_a1.log", "tqc_flat_a1_2", trial_id=56, convert=False)
-    # hyperparams["gradient_steps"] = 512
-    # study.enqueue_trial(hyperparams, user_attrs={"memo": "manually tuned"})
+    from isaaclab_rl.sb3 import load_trial
+
+    # Best trials
+    trial_ids = [0, 56, 120, 149, 167, 172]
+    for trial_id in trial_ids:
+        hyperparams = load_trial("logs/sb3_tqc_flat_a1.log", "tqc_flat_a1_2", trial_id=trial_id, convert=False)
+        # Convert search space
+        for key in ["learning_starts"]:
+            del hyperparams[key]
+        hyperparams["net_arch_complexity"] = {
+            "default": 0,
+            "medium": 1,
+            "simba": 2,
+        }[hyperparams["net_arch"]]
+        del hyperparams["net_arch"]
+        study.enqueue_trial(hyperparams, user_attrs={"memo": "from previous optim"})
 
     def objective(trial: optuna.Trial) -> float:
         # TODO: add support for PPO/SAC
@@ -248,7 +282,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         callback = TimeoutCallback(timeout=60 * 6, start_after=3_000)
         agent.learn(total_timesteps=int(3e7), callback=callback)
         trial.set_user_attr("num_timesteps", agent.num_timesteps)
-        mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=250, warn=False)
+        env.seed(args_cli.seed)
+        mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
         trial.set_user_attr("std_reward", std_reward)
 
         # Free memory
