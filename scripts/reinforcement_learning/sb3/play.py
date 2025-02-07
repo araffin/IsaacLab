@@ -168,6 +168,16 @@ def main():
 
     dt = env.unwrapped.physics_dt
 
+    # from stable_baselines3.common.evaluation import evaluate_policy
+
+    # for idx in range(1, 21):
+    #     import time
+    #     start_time = time.time()
+    #     # env.seed(3)
+    #     mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
+    #     dt = time.time() - start_time
+    #     print(f"Eval {idx}: {mean_reward:.2f} +/ {std_reward:.2f}, took {dt:.1f}s")
+
     # reset environment
     obs = env.reset()
     timestep = 0
