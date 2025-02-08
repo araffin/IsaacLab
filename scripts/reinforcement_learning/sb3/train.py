@@ -12,6 +12,7 @@ import argparse
 import contextlib
 import signal
 import sys
+from copy import deepcopy
 from pprint import pprint
 
 from isaaclab.app import AppLauncher
@@ -219,9 +220,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     else:
         hyperparams = simba_hyperparams
 
+    # Default hyperparams: doesn't work'
+    # hyperparams = dict(policy="MlpPolicy", gradient_steps=env.num_envs)
+
     # Sort for printing
     hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
     pprint(hyperparams)
+
+    # FIXME: convert activation_fn to string or to non JIT version
+    saved_hyperparams = deepcopy(hyperparams)
+    if "policy_kwargs" in saved_hyperparams and "activation_fn" in saved_hyperparams["policy_kwargs"]:
+        del saved_hyperparams["policy_kwargs"]["activation_fn"]
+    dump_yaml(os.path.join(log_dir, "hyperparams.yaml"), saved_hyperparams)
+
     # ppo_hyperparams = dict(
     #     policy="MlpPolicy",
     #     policy_kwargs=dict(
@@ -280,22 +291,23 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     elif args_cli.algo == "sac":
         n_timesteps = int(3e7)
         agent = sbx.SAC(
-            "MlpPolicy",
-            env,
-            train_freq=5,
-            batch_size=512,
-            # qf_learning_rate=7e-4,
-            gradient_steps=min(env.num_envs, 256),
-            policy_delay=10,
-            learning_starts=1_000,
-            ent_coef="auto_0.01",
+            # "MlpPolicy",
+            env=env,
+            **hyperparams,
             verbose=1,
-            buffer_size=800_000,
-            # tau=0.01,
-            policy_kwargs=dict(
-                activation_fn=flax.linen.elu,
-                net_arch=[128, 128, 128],
-            ),
+            # train_freq=5,
+            # batch_size=512,
+            # # qf_learning_rate=7e-4,
+            # gradient_steps=min(env.num_envs, 256),
+            # policy_delay=10,
+            # learning_starts=1_000,
+            # ent_coef="auto_0.01",
+            # buffer_size=800_000,
+            # # tau=0.01,
+            # policy_kwargs=dict(
+            #     activation_fn=flax.linen.elu,
+            #     net_arch=[128, 128, 128],
+            # ),
             tensorboard_log=log_dir,
             # param_resets=[int(i * 2e7) for i in range(1, 10)],
         )
