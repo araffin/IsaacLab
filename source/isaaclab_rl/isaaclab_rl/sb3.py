@@ -391,7 +391,7 @@ class Sb3VecEnvWrapper(VecEnv):
 
 class RescaleActionWrapper(VecEnvWrapper):
 
-    def __init__(self, vec_env, percent=5.0):
+    def __init__(self, vec_env, percent=5.0, scheduler=None):
         super().__init__(vec_env)
         self.low, self.high = vec_env.action_space.low, vec_env.action_space.high
         self.percent = percent
@@ -401,8 +401,14 @@ class RescaleActionWrapper(VecEnvWrapper):
             shape=vec_env.action_space.shape,
             dtype=np.float32,
         )
+        self.n_steps = 0
+        self.scheduler = scheduler
 
     def step_async(self, actions: np.ndarray) -> None:
+        # self.n_steps += self.num_envs
+        # if self.scheduler:
+        #     self.percent = self.scheduler(self.n_steps)
+
         # Rescale the action from [-1, 1] to [low, high]
         low = self.percent * 0.01 * self.low
         high = self.percent * 0.01 * self.high

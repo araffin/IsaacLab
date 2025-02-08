@@ -162,6 +162,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.algo != "ppo":
         # For Rough:
         # env = RescaleActionWrapper(env, percent=5)
+        # from stable_baselines3.common.utils import get_linear_fn
+        # def scheduler(num_steps: int) -> float:
+        #     progress_remaining = max(1.0 - float(num_steps) / float(5e7), 0.0)
+        #     return get_linear_fn(start=2.8, end=4.5, end_fraction=1.0)(progress_remaining)
         env = RescaleActionWrapper(env, percent=3)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
@@ -222,28 +226,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # Default hyperparams: doesn't work'
     # hyperparams = dict(policy="MlpPolicy", gradient_steps=env.num_envs)
+    # hyperparams["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
 
     # Sort for printing
     hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
     pprint(hyperparams)
 
     # FIXME: convert activation_fn to string or to non JIT version
-    saved_hyperparams = deepcopy(hyperparams)
-    if "policy_kwargs" in saved_hyperparams and "activation_fn" in saved_hyperparams["policy_kwargs"]:
-        del saved_hyperparams["policy_kwargs"]["activation_fn"]
-    dump_yaml(os.path.join(log_dir, "hyperparams.yaml"), saved_hyperparams)
-
-    # ppo_hyperparams = dict(
-    #     policy="MlpPolicy",
-    #     policy_kwargs=dict(
-    #         activation_fn=flax.linen.elu,
-    #         # net_arch=[512, 256, 128],
-    #         net_arch=[128, 128, 128],
-    #         layer_norm=True,
-    #     ),
-    #     learning_starts=1_000,
-    # )
-    # hyperparams = ppo_hyperparams
+    if args_cli.algo != "ppo":
+        saved_hyperparams = deepcopy(hyperparams)
+        if "policy_kwargs" in saved_hyperparams and "activation_fn" in saved_hyperparams["policy_kwargs"]:
+            del saved_hyperparams["policy_kwargs"]["activation_fn"]
+        dump_yaml(os.path.join(log_dir, "hyperparams.yaml"), saved_hyperparams)
 
     log_interval = 100
     if args_cli.algo == "tqc":
