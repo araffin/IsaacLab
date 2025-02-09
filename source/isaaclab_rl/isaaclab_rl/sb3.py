@@ -31,6 +31,27 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, Vec
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
+try:
+    from stable_baselines3.common.callbacks import LogEveryNTimesteps
+except ImportError:
+    from stable_baselines3.common.callbacks import ConvertCallback, EveryNTimesteps
+
+    # Implement for SB3 < v2.6.0
+    class LogEveryNTimesteps(EveryNTimesteps):
+        """
+        Log data every ``n_steps`` timesteps
+
+        :param n_steps: Number of timesteps between two trigger.
+        """
+
+        def __init__(self, n_steps: int):
+            super().__init__(n_steps, callback=ConvertCallback(self._log_data))
+
+        def _log_data(self, _locals: dict[str, Any], _globals: dict[str, Any]) -> bool:
+            self.model._dump_logs()
+            return True
+
+
 """
 Configuration Parser.
 """

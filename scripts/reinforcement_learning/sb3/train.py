@@ -27,6 +27,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument("--log-interval", type=int, default=100_000, help="Log data every n timesteps.")
 parser.add_argument("--fast", action="store_true", default=False, help="Faster correct training but not extras logged.")
 parser.add_argument(
     "--no-info", action="store_true", default=False, help="Fastest and incorrect training but no statistics."
@@ -80,7 +81,7 @@ import optax
 import sbx
 
 # from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, load_trial, process_sb3_cfg
+from isaaclab_rl.sb3 import LogEveryNTimesteps, RescaleActionWrapper, Sb3VecEnvWrapper, load_trial, process_sb3_cfg
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 # from stable_baselines3.common.logger import configure
@@ -239,7 +240,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             del saved_hyperparams["policy_kwargs"]["activation_fn"]
         dump_yaml(os.path.join(log_dir, "hyperparams.yaml"), saved_hyperparams)
 
-    log_interval = 100
     if args_cli.algo == "tqc":
         n_timesteps = int(3e7)
         agent = sbx.TQC(
@@ -251,7 +251,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     elif args_cli.algo == "ppo":
         # n_timesteps = int(3e7)
         n_timesteps = int(5e7)
-        log_interval = 20
         agent_cfg["tensorboard_log"] = log_dir
 
         hyperparams = dict(
@@ -318,14 +317,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         verbose=2,
         save_vecnormalize=True,
     )
+    callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+
     # checkpoint_callback = None
     # train the agent
     with contextlib.suppress(KeyboardInterrupt):
         agent.learn(
             total_timesteps=n_timesteps,
-            callback=checkpoint_callback,
+            callback=callbacks,
             progress_bar=True,
-            log_interval=log_interval,
+            log_interval=None,
         )
 
     # save the final model
