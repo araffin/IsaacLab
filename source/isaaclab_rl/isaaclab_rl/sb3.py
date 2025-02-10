@@ -261,7 +261,7 @@ class Sb3VecEnvWrapper(VecEnv):
         self._ep_len_buf += 1
         # compute reset ids
         dones = terminated | truncated
-        reset_ids = (dones > 0).nonzero(as_tuple=False)
+        self.reset_ids = reset_ids = (dones > 0).nonzero(as_tuple=False)
 
         # convert data types to numpy depending on backend
         # note: ManagerBasedRLEnv uses torch backend (by default).
@@ -412,7 +412,7 @@ class Sb3VecEnvWrapper(VecEnv):
 
 class RescaleActionWrapper(VecEnvWrapper):
 
-    def __init__(self, vec_env, percent=5.0):
+    def __init__(self, vec_env, percent=5.0, scheduler=None):
         super().__init__(vec_env)
         self.low, self.high = vec_env.action_space.low, vec_env.action_space.high
         self.percent = percent
@@ -422,13 +422,26 @@ class RescaleActionWrapper(VecEnvWrapper):
             shape=vec_env.action_space.shape,
             dtype=np.float32,
         )
-        # self.n_steps = 0
-        # self.scheduler = scheduler
+        self.n_steps = 0
+        self.scheduler = scheduler
+        self.observation_space = gym.spaces.Box(
+            low=-1.0,
+            high=1.0,
+            shape=(vec_env.observation_space.shape[0] + 1,),
+            dtype=np.float32,
+        )
+
+    def add_to_obs(self, obs: np.ndarray) -> np.ndarray:
+        if not self.scheduler:
+            return obs
+        if len(obs.shape) > 1:
+            return np.concatenate((obs, np.full((self.num_envs, 1), self.percent / 100.0)), axis=1)
+        return np.concatenate((obs, np.full((1,), self.percent / 100.0)))
 
     def step_async(self, actions: np.ndarray) -> None:
-        # self.n_steps += self.num_envs
-        # if self.scheduler:
-        #     self.percent = self.scheduler(self.n_steps)
+        self.n_steps += self.num_envs
+        if self.scheduler:
+            self.percent = self.scheduler(self.n_steps)
 
         # Rescale the action from [-1, 1] to [low, high]
         low = self.percent * 0.01 * self.low
@@ -437,10 +450,15 @@ class RescaleActionWrapper(VecEnvWrapper):
         self.venv.step_async(rescaled_action)
 
     def reset(self) -> np.ndarray:
-        return self.venv.reset()
+        obs = self.venv.reset()
+        return self.add_to_obs(obs)
 
     def step_wait(self):
-        return self.venv.step_wait()
+        obs, reward, done, infos = self.venv.step_wait()
+        for idx in self.venv.reset_ids:
+            infos[idx]["terminal_observation"] = self.add_to_obs(infos[idx]["terminal_observation"])
+
+        return self.add_to_obs(obs), reward, done, infos
 
 
 class ClipActionWrapper(VecEnvWrapper):
