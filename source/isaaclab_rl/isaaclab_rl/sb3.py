@@ -424,12 +424,13 @@ class RescaleActionWrapper(VecEnvWrapper):
         )
         self.n_steps = 0
         self.scheduler = scheduler
-        self.observation_space = gym.spaces.Box(
-            low=-1.0,
-            high=1.0,
-            shape=(vec_env.observation_space.shape[0] + 1,),
-            dtype=np.float32,
-        )
+        if scheduler:
+            self.observation_space = gym.spaces.Box(
+                low=-1.0,
+                high=1.0,
+                shape=(vec_env.observation_space.shape[0] + 1,),
+                dtype=np.float32,
+            )
 
     def add_to_obs(self, obs: np.ndarray) -> np.ndarray:
         if not self.scheduler:

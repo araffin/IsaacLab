@@ -160,14 +160,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
 
-    if args_cli.algo != "ppo":
+    squash_output = True
+    if args_cli.algo != "ppo" and squash_output:
         # For Rough:
         # env = RescaleActionWrapper(env, percent=5)
         # from stable_baselines3.common.utils import get_linear_fn
+
         # def scheduler(num_steps: int) -> float:
         #     progress_remaining = max(1.0 - float(num_steps) / float(5e7), 0.0)
-        #     return get_linear_fn(start=2.8, end=4.5, end_fraction=1.0)(progress_remaining)
+        #     return get_linear_fn(start=1.5, end=2.5, end_fraction=1.0)(progress_remaining)
+
         env = RescaleActionWrapper(env, percent=3)
+        # env = RescaleActionWrapper(env, percent=3)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
     #     # env = RescaleActionWrapper(env, percent=3)
@@ -228,6 +232,17 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # Default hyperparams: doesn't work'
     # hyperparams = dict(policy="MlpPolicy", gradient_steps=env.num_envs)
     # hyperparams["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
+    # hyperparams["policy_kwargs"]["squash_output"] = squash_output
+    # hyperparams["policy_kwargs"]["optimizer_class"] = optax.adamw
+    # hyperparams["ent_coef"] = "auto_0.0005"
+    # hyperparams["ent_coef"] = "auto"
+    # hyperparams["target_entropy"] = -5.0
+    # hyperparams["buffer_size"] = 200_000
+    # hyperparams["top_quantiles_to_drop_per_net"] = 4
+    # hyperparams["tau"] = 0.008
+    hyperparams["gradient_steps"] = int((env.num_envs / 2048) * 800)
+    # hyperparams["policy_kwargs"]["dropout_rate"] = 0.001
+    # hyperparams["policy_kwargs"]["layer_norm"] = True
 
     # Sort for printing
     hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
