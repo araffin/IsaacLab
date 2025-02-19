@@ -108,6 +108,29 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)
 
+    if not agent_cfg:
+        print("Loading SB3 default")
+        agent_cfg = {
+            "n_timesteps": 3e7,
+            "normalize_input": True,
+            "normalize_value": False,
+            "clip_obs": 10.0,
+            "n_timesteps": 3e7,
+            "seed": 42,
+            "gamma": 0.99,
+            # PPO Defaults
+            "n_steps": 25,
+            "batch_size": 6400,  # for 1024 envs, to have 4 minibatches
+            "gae_lambda": 0.95,
+            "n_epochs": 5,
+            "ent_coef": 0.01,
+            "learning_rate": 1e-3,
+            "clip_range": 0.2,
+            "vf_coef": 1.0,
+            "max_grad_norm": 1.0,
+        }
+        pprint(agent_cfg)
+
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
@@ -134,6 +157,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
+
     # read configurations about the agent-training
     # policy_arch = agent_cfg.pop("policy")
     n_timesteps = agent_cfg.pop("n_timesteps")
@@ -181,6 +205,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # import ipdb
     # ipdb.set_trace()
+
+    # from stable_baselines3.common.vec_env import VecFrameStack
+    # env = VecFrameStack(env, n_stack=2)
 
     if "normalize_input" in agent_cfg:
         print("Normalizing input")
@@ -235,7 +262,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # Sort for printing
     hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
-    pprint(hyperparams)
 
     # FIXME: convert activation_fn to string or to non JIT version
     if args_cli.algo != "ppo":
@@ -245,6 +271,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         dump_yaml(os.path.join(log_dir, "hyperparams.yaml"), saved_hyperparams)
 
     if args_cli.algo == "tqc":
+        pprint(hyperparams)
+
         n_timesteps = int(3e7)
         agent = sbx.TQC(
             env=env,
@@ -257,19 +285,29 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         n_timesteps = int(5e7)
         agent_cfg["tensorboard_log"] = log_dir
 
+        # hyperparams = dict(
+        #     policy="MlpPolicy",
+        #     policy_kwargs=dict(
+        #         activation_fn=flax.linen.elu,
+        #         # net_arch=[512, 256, 128],
+        #         net_arch=[128, 128, 128],
+        #         # log_std_init=-2.5,
+        #     )
+        # )
         hyperparams = dict(
+            policy="SimbaPolicy",
             policy_kwargs=dict(
                 activation_fn=flax.linen.elu,
                 # net_arch=[512, 256, 128],
-                net_arch=[128, 128, 128],
-                # log_std_init=-2.5,
-            )
+                net_arch=[128, 128],
+            ),
         )
 
         # import torch
         # import stable_baselines3 as sb3
 
         # hyperparams = dict(
+        #     policy="MlpPolicy",
         #     policy_kwargs=dict(
         #         activation_fn=torch.nn.ELU,
         #         net_arch=[128, 128, 128],
@@ -283,9 +321,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         #     # TODO: use AdamW too
         # )
         # agent_cfg["ent_coef"] = 0.0
-        # agent = sb3.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
-        agent = sbx.PPO("MlpPolicy", env, verbose=1, **agent_cfg, **hyperparams)
+        # agent = sb3.PPO(env=env, verbose=1, **agent_cfg, **hyperparams)
+        pprint(agent_cfg)
+        pprint(hyperparams)
+
+        agent = sbx.PPO(env=env, verbose=1, **agent_cfg, **hyperparams)
     elif args_cli.algo == "sac":
+        pprint(hyperparams)
+
         n_timesteps = int(3e7)
         agent = sbx.SAC(
             # "MlpPolicy",

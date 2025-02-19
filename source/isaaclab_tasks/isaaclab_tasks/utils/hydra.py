@@ -42,7 +42,14 @@ def register_task_to_hydra(
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     agent_cfg = None
     if agent_cfg_entry_point:
-        agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
+        try:
+            agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
+        except ValueError as e:
+            if "sb3" in agent_cfg_entry_point:
+                # Load default config, done in train script
+                agent_cfg = {}
+            else:
+                raise e
     # replace gymnasium spaces with strings because OmegaConf does not support them.
     # this must be done before converting the env configs to dictionary to avoid internal reinterpretations
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)

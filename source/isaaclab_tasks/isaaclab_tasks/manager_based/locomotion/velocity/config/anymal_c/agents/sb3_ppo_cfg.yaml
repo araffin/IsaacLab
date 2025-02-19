@@ -1,8 +1,0 @@
-seed: 42
-
-n_timesteps: !!float 3e7
-policy: 'MlpPolicy'
-normalize_input: True
-normalize_value: False
-clip_obs: 10.0
-gamma: 0.99
