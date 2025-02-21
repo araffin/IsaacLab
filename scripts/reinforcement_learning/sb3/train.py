@@ -146,8 +146,8 @@ ppo_defaults = dict(
     policy="MlpPolicy",
     policy_kwargs=dict(
         activation_fn=elu,
-        # net_arch=[512, 256, 128],
-        net_arch=[128, 128, 128],
+        net_arch=[512, 256, 128],
+        # net_arch=[128, 128, 128],
         # log_std_init=-2.5,
     ),
 )
@@ -182,6 +182,7 @@ simba_hyperparams = dict(
     buffer_size=800_000,
     policy_kwargs={
         "optimizer_class": optax.adamw,
+        # "optimizer_kwargs": {"eps": 1e-5},
         "activation_fn": elu,
         "net_arch": {"pi": [128, 128], "qf": [256, 256]},
         # "net_arch": [128, 128, 128],
@@ -202,6 +203,28 @@ simba_hyperparams = dict(
     # top_quantiles_to_drop_per_net=5,
 )
 
+# Optimized with TQC on A1 flat for 2048 envs
+optimized_tqc_hyperparams = dict(
+    policy="MlpPolicy",
+    buffer_size=800_000,
+    policy_kwargs={
+        "optimizer_class": optax.adamw,
+        "activation_fn": elu,
+        "net_arch": [512, 256, 128],
+        # "net_arch": {"pi": [128, 128, 128], "qf": [512, 256, 128]},
+        "n_critics": 2,
+    },
+    learning_starts=1_000,
+    # param_resets=[int(i * 1e7) for i in range(1, 10)],
+    train_freq=4,
+    learning_rate=0.000375,
+    gamma=0.981,
+    batch_size=256,
+    gradient_steps=650,
+    policy_delay=30,
+    ent_coef="auto_0.00631",
+)
+
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
@@ -213,7 +236,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if not agent_cfg:
         print("Loading SB3 default")
         agent_cfg = {
-            "n_timesteps": 3e7,
+            "n_timesteps": 5e7,
             # "n_timesteps": 5e7,
             "normalize_input": True,
             "normalize_value": False,
@@ -225,8 +248,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         default_hyperparams = {
             "ppo_sb3": ppo_sb3_defaults,
             "ppo": ppo_defaults,
-            "tqc": simba_hyperparams,
-            "sac": simba_hyperparams,
+            "tqc": optimized_tqc_hyperparams,
+            "sac": optimized_tqc_hyperparams,
         }[args_cli.algo]
 
         agent_cfg.update(default_hyperparams)
@@ -308,10 +331,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             clip_reward=np.inf,
         )
 
-    # Default hyperparams: don't work
-    # hyperparams = dict(policy="MlpPolicy", gradient_steps=env.num_envs)
-    # hyperparams["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
-    # hyperparams["policy_kwargs"]["squash_output"] = squash_output
+    # agent_cfg["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
+    # agent_cfg["policy_kwargs"]["squash_output"] = squash_output
+    # agent_cfg["policy_kwargs"]["optimizer_class"] = optax.adam
+    # agent_cfg["policy_kwargs"]["optimizer_kwargs"] = {"eps": 1e-5}
+    # agent_cfg["policy_kwargs"]["ortho_init"] = True
+    # agent_cfg["policy_kwargs"]["net_arch"] = [512, 256, 128]
 
     # Sort for printing
     hyperparams = {key: agent_cfg[key] for key in sorted(agent_cfg.keys())}

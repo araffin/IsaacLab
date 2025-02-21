@@ -530,7 +530,7 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
     del hyperparams["one_minus_gamma"]
 
     if "net_arch_complexity" in sampled_params:
-        net_arch = ["default", "medium", "simba"][sampled_params["net_arch_complexity"]]
+        net_arch = ["default", "medium", "simba", "large"][sampled_params["net_arch_complexity"]]
         del hyperparams["net_arch_complexity"]
     else:
         net_arch = sampled_params["net_arch"]
@@ -545,6 +545,7 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
             "pi": [128, 128],
             "qf": [256, 256],
         },
+        "large": [512, 256, 128],
     }[net_arch]
     # activation_fn = {
     #     "elu": flax.linen.elu,

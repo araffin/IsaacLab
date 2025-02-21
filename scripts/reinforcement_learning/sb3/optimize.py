@@ -39,8 +39,8 @@ parser.add_argument(
     "--sampler",
     help="Sampler to use when optimizing hyperparameters",
     type=str,
-    default="tpe",
-    choices=["random", "tpe", "cmaes"],
+    default="auto",
+    choices=["random", "tpe", "cmaes", "auto"],
 )
 parser.add_argument("--pop-size", help="Initial population size for CMAES", type=int, default=10)
 # parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
@@ -71,6 +71,7 @@ import random
 import time
 
 import optuna
+import optunahub
 import sbx
 
 # from stable_baselines3 import PPO
@@ -117,9 +118,9 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.1, log=True)
     # batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
     batch_size = trial.suggest_int("batch_size", 128, 1024, log=True)
-    # net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba"])
+    # net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba", "large"])
     # Use int to be able to use CMA-ES
-    net_arch_complexity = trial.suggest_int("net_arch_complexity", 0, 2)
+    net_arch_complexity = trial.suggest_int("net_arch_complexity", 0, 3)
     # activation_fn = trial.suggest_categorical("activation_fn", ["elu", "relu", "gelu"])
     train_freq = trial.suggest_int("train_freq", 1, 15)
     gradient_steps = trial.suggest_int("gradient_steps", 128, 1024)
@@ -219,6 +220,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
 
     # Select the sampler, can be random, TPESampler, CMAES, ...
     sampler = {
+        "auto": optunahub.load_module("samplers/auto_sampler").AutoSampler(seed=args_cli.seed),
         "tpe": TPESampler(n_startup_trials=N_STARTUP_TRIALS, multivariate=True, seed=args_cli.seed),
         "cmaes": CmaEsSampler(
             seed=args_cli.seed,
