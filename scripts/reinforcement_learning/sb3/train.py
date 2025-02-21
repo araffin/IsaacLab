@@ -13,9 +13,33 @@ import contextlib
 import signal
 import sys
 from copy import deepcopy
+from pathlib import Path
 from pprint import pprint
 
 from isaaclab.app import AppLauncher
+
+
+class StoreDict(argparse.Action):
+    """
+    Custom argparse action for storing dict.
+
+    In: args1:0.0 args2:"dict(a=1)"
+    Out: {'args1': 0.0, arg2: dict(a=1)}
+    """
+
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        self._nargs = nargs
+        super().__init__(option_strings, dest, nargs=nargs, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        arg_dict = {}
+        for arguments in values:
+            key = arguments.split(":")[0]
+            value = ":".join(arguments.split(":")[1:])
+            # Evaluate the string as python code
+            arg_dict[key] = eval(value)
+        setattr(namespace, self.dest, arg_dict)
+
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Baselines3.")
@@ -24,9 +48,10 @@ parser.add_argument("--video_length", type=int, default=200, help="Length of the
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
+parser.add_argument(
+    "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc", "ppo_sb3"]
+)
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument("--log-interval", type=int, default=100_000, help="Log data every n timesteps.")
 parser.add_argument("--fast", action="store_true", default=False, help="Faster correct training but not extras logged.")
 parser.add_argument(
@@ -37,6 +62,15 @@ parser.add_argument(
 )
 parser.add_argument("-name", "--study-name", help="Study name when loading Optuna results", type=str)
 parser.add_argument("-id", "--trial-id", help="Trial id to load, otherwise loading best trial", type=int)
+parser.add_argument(
+    "-params",
+    "--hyperparams",
+    type=str,
+    nargs="+",
+    action=StoreDict,
+    help="Overwrite hyperparameter (e.g. learning_rate:0.01 train_freq:10)",
+)
+
 # parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -74,17 +108,16 @@ import gymnasium as gym
 import numpy as np
 import os
 import random
+import torch
 from datetime import datetime
 
-import flax
 import optax
 import sbx
 
 # from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import LogEveryNTimesteps, RescaleActionWrapper, Sb3VecEnvWrapper, load_trial, process_sb3_cfg
+import stable_baselines3 as sb3
+from isaaclab_rl.sb3 import LogEveryNTimesteps, RescaleActionWrapper, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
 from stable_baselines3.common.callbacks import CheckpointCallback
-
-# from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import (
@@ -100,6 +133,75 @@ from isaaclab.utils.io import dump_pickle, dump_yaml
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
+ppo_defaults = dict(
+    n_steps=25,
+    batch_size=6400,  # for 1024 envs, to have 4 minibatches
+    gae_lambda=0.95,
+    n_epochs=5,
+    ent_coef=0.01,
+    learning_rate=1e-3,
+    clip_range=0.2,
+    vf_coef=1.0,
+    max_grad_norm=1.0,
+    policy="MlpPolicy",
+    policy_kwargs=dict(
+        activation_fn=elu,
+        # net_arch=[512, 256, 128],
+        net_arch=[128, 128, 128],
+        # log_std_init=-2.5,
+    ),
+)
+
+ppo_simba = dict(
+    policy="SimbaPolicy",
+    policy_kwargs=dict(
+        activation_fn=elu,
+        # net_arch=[512, 256, 128],
+        net_arch=[128, 128],
+    ),
+)
+
+ppo_sb3 = dict(
+    policy="MlpPolicy",
+    policy_kwargs=dict(
+        activation_fn=torch.nn.ELU,
+        net_arch=[128, 128, 128],
+        # log_std_init=-2.0,
+        # use_expln=True,
+        # squash_output=True,
+    ),
+    # use_sde=True,
+    # sde_sample_freq=8,
+    # TODO: use AdamW too
+)
+ppo_sb3_defaults = deepcopy(ppo_defaults)
+ppo_sb3_defaults.update(ppo_sb3)
+
+simba_hyperparams = dict(
+    policy="SimbaPolicy",
+    buffer_size=800_000,
+    policy_kwargs={
+        "optimizer_class": optax.adamw,
+        "activation_fn": elu,
+        "net_arch": {"pi": [128, 128], "qf": [256, 256]},
+        # "net_arch": [128, 128, 128],
+        "n_critics": 2,
+    },
+    learning_starts=1_000,
+    # param_resets=[int(i * 1e7) for i in range(1, 10)],
+    train_freq=5,
+    # learning_rate=7e-4,
+    gamma=0.985,
+    batch_size=512,
+    gradient_steps=512,
+    policy_delay=10,
+    # ent_coef=0.001,
+    ent_coef="auto_0.01",
+    # target_entropy=-10.0,
+    # tau=0.008,
+    # top_quantiles_to_drop_per_net=5,
+)
+
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
@@ -112,31 +214,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("Loading SB3 default")
         agent_cfg = {
             "n_timesteps": 3e7,
+            # "n_timesteps": 5e7,
             "normalize_input": True,
             "normalize_value": False,
             "clip_obs": 10.0,
-            "n_timesteps": 3e7,
             "seed": 42,
             "gamma": 0.99,
-            # PPO Defaults
-            "n_steps": 25,
-            "batch_size": 6400,  # for 1024 envs, to have 4 minibatches
-            "gae_lambda": 0.95,
-            "n_epochs": 5,
-            "ent_coef": 0.01,
-            "learning_rate": 1e-3,
-            "clip_range": 0.2,
-            "vf_coef": 1.0,
-            "max_grad_norm": 1.0,
         }
+
+        default_hyperparams = {
+            "ppo_sb3": ppo_sb3_defaults,
+            "ppo": ppo_defaults,
+            "tqc": simba_hyperparams,
+            "sac": simba_hyperparams,
+        }[args_cli.algo]
+
+        agent_cfg.update(default_hyperparams)
+
         pprint(agent_cfg)
 
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
-    # max iterations for training
-    # if args_cli.max_iterations is not None:
-    #     agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
@@ -155,11 +254,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
-    # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
+    command = " ".join(sys.orig_argv)
+    (Path(log_dir) / "command.txt").write_text(command)
 
     # read configurations about the agent-training
-    # policy_arch = agent_cfg.pop("policy")
     n_timesteps = agent_cfg.pop("n_timesteps")
 
     # create isaac environment
@@ -184,30 +282,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
 
-    squash_output = True
-    if args_cli.algo != "ppo" and squash_output:
-        # For Rough:
-        # env = RescaleActionWrapper(env, percent=5)
-        # from stable_baselines3.common.utils import get_linear_fn
-
-        # def scheduler(num_steps: int) -> float:
-        #     progress_remaining = max(1.0 - float(num_steps) / float(5e7), 0.0)
-        #     return get_linear_fn(start=1.5, end=2.5, end_fraction=1.0)(progress_remaining)
-
+    if "ppo" not in args_cli.algo:
         env = RescaleActionWrapper(env, percent=3)
-    # else:
-    #     env = ClipActionWrapper(env, percent=3)
-    #     # env = RescaleActionWrapper(env, percent=3)
-    # env = ClipActionWrapper(env, percent=3.0)
-    # env = RescaleActionWrapper(env, percent=3.0)
 
     print(f"Action space: {env.action_space}")
 
-    # import ipdb
-    # ipdb.set_trace()
+    if args_cli.storage and args_cli.study_name:
+        print("Loading from Optuna study...")
+        hyperparams = load_trial(args_cli.storage, args_cli.study_name, args_cli.trial_id)
+        agent_cfg.update(hyperparams)
 
-    # from stable_baselines3.common.vec_env import VecFrameStack
-    # env = VecFrameStack(env, n_stack=2)
+    if args_cli.hyperparams is not None:
+        print("Updating hyperparams from cli")
+        agent_cfg.update(args_cli.hyperparams)
 
     if "normalize_input" in agent_cfg:
         print("Normalizing input")
@@ -221,125 +308,37 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             clip_reward=np.inf,
         )
 
-    simba_hyperparams = dict(
-        policy="SimbaPolicy",
-        # batch_size=256,
-        buffer_size=800_000,
-        # learning_rate=3e-4,
-        policy_kwargs={
-            "optimizer_class": optax.adamw,
-            "activation_fn": flax.linen.elu,
-            "net_arch": {"pi": [128, 128], "qf": [256, 256]},
-            "n_critics": 2,
-        },
-        # learning_starts=10_000,
-        learning_starts=1_000,
-        # normalize={"norm_obs": True, "norm_reward": False},
-        # param_resets=[int(i * 1e7) for i in range(1, 10)],
-        train_freq=5,
-        # learning_rate=7e-4,
-        gamma=0.985,
-        batch_size=512,
-        # gradient_steps=min(env.num_envs, 256),
-        gradient_steps=min(env.num_envs, 512),
-        policy_delay=10,
-        # ent_coef=0.001,
-        ent_coef="auto_0.01",
-        # target_entropy=-10.0,
-        # tau=0.008,
-        # top_quantiles_to_drop_per_net=5,
-    )
-    if args_cli.storage and args_cli.study_name:
-        print("Loading from Optuna study...")
-        hyperparams = load_trial(args_cli.storage, args_cli.study_name, args_cli.trial_id)
-    else:
-        hyperparams = simba_hyperparams
-
-    # Default hyperparams: doesn't work'
+    # Default hyperparams: don't work
     # hyperparams = dict(policy="MlpPolicy", gradient_steps=env.num_envs)
     # hyperparams["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
     # hyperparams["policy_kwargs"]["squash_output"] = squash_output
 
     # Sort for printing
-    hyperparams = {key: hyperparams[key] for key in sorted(hyperparams.keys())}
+    hyperparams = {key: agent_cfg[key] for key in sorted(agent_cfg.keys())}
 
-    # FIXME: convert activation_fn to string or to non JIT version
-    if args_cli.algo != "ppo":
-        saved_hyperparams = deepcopy(hyperparams)
-        if "policy_kwargs" in saved_hyperparams and "activation_fn" in saved_hyperparams["policy_kwargs"]:
-            del saved_hyperparams["policy_kwargs"]["activation_fn"]
+    pprint(hyperparams)
+
+    saved_hyperparams = deepcopy(hyperparams)
+    try:
+        dump_yaml(os.path.join(log_dir, "hyperparams.yaml"), saved_hyperparams)
+    except ValueError:
+        # Backward compat with elu not being JIT compatible
+        del saved_hyperparams["policy_kwargs"]["activation_fn"]
         dump_yaml(os.path.join(log_dir, "hyperparams.yaml"), saved_hyperparams)
 
-    if args_cli.algo == "tqc":
-        pprint(hyperparams)
+    agent_cfg["tensorboard_log"] = log_dir
 
-        n_timesteps = int(3e7)
-        agent = sbx.TQC(
-            env=env,
-            verbose=1,
-            **hyperparams,
-            tensorboard_log=log_dir,
-        )
-    elif args_cli.algo == "ppo":
-        # n_timesteps = int(3e7)
-        n_timesteps = int(5e7)
-        agent_cfg["tensorboard_log"] = log_dir
+    # post-process agent configuration
+    agent_cfg = process_sb3_cfg(agent_cfg)
 
-        # hyperparams = dict(
-        #     policy="MlpPolicy",
-        #     policy_kwargs=dict(
-        #         activation_fn=flax.linen.elu,
-        #         # net_arch=[512, 256, 128],
-        #         net_arch=[128, 128, 128],
-        #         # log_std_init=-2.5,
-        #     )
-        # )
-        hyperparams = dict(
-            policy="SimbaPolicy",
-            policy_kwargs=dict(
-                activation_fn=flax.linen.elu,
-                # net_arch=[512, 256, 128],
-                net_arch=[128, 128],
-            ),
-        )
+    algo_class = {
+        "ppo_sb3": sb3.PPO,
+        "ppo": sbx.PPO,
+        "tqc": sbx.TQC,
+        "sac": sbx.SAC,
+    }[args_cli.algo]
 
-        # import torch
-        # import stable_baselines3 as sb3
-
-        # hyperparams = dict(
-        #     policy="MlpPolicy",
-        #     policy_kwargs=dict(
-        #         activation_fn=torch.nn.ELU,
-        #         net_arch=[128, 128, 128],
-        #         # log_std_init=-2.0,
-        #         # log_std_init=-4.2,
-        #         # use_expln=True,
-        #         # squash_output=True,
-        #     ),
-        #     # use_sde=True,
-        #     # sde_sample_freq=8,
-        #     # TODO: use AdamW too
-        # )
-        # agent_cfg["ent_coef"] = 0.0
-        # agent = sb3.PPO(env=env, verbose=1, **agent_cfg, **hyperparams)
-        pprint(agent_cfg)
-        pprint(hyperparams)
-
-        agent = sbx.PPO(env=env, verbose=1, **agent_cfg, **hyperparams)
-    elif args_cli.algo == "sac":
-        pprint(hyperparams)
-
-        n_timesteps = int(3e7)
-        agent = sbx.SAC(
-            # "MlpPolicy",
-            env=env,
-            **hyperparams,
-            verbose=1,
-            tensorboard_log=log_dir,
-        )
-    # configure the logger
-    # new_logger = configure(log_dir, ["stdout", "tensorboard"])
-    # agent.set_logger(new_logger)
+    agent = algo_class(env=env, verbose=1, **agent_cfg)
 
     print(f"{env.num_envs=}")
     # callbacks for agent
@@ -352,7 +351,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     )
     callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
 
-    # checkpoint_callback = None
     # train the agent
     with contextlib.suppress(KeyboardInterrupt):
         agent.learn(

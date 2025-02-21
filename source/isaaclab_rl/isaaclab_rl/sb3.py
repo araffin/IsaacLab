@@ -24,6 +24,7 @@ import torch
 import torch.nn as nn  # noqa: F401
 from typing import Any
 
+import jax.numpy as jnp
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env import VecEnvWrapper
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
@@ -51,6 +52,13 @@ except ImportError:
             return True
 
 
+# TO BE able to pickle it, no JIT
+# https://github.com/jax-ml/jax/blob/72e7b93b4d0648ade1fc96bd0dad946493a4fe2d/jax/_src/nn/functions.py#L294
+def elu(x, alpha=1.0):
+    safe_x = jnp.where(x > 0, 0.0, x)
+    return jnp.where(x > 0, x, alpha * jnp.expm1(safe_x))
+
+
 """
 Configuration Parser.
 """
@@ -76,7 +84,7 @@ def process_sb3_cfg(cfg: dict) -> dict:
             else:
                 if key in ["policy_kwargs", "replay_buffer_class", "replay_buffer_kwargs"]:
                     hyperparams[key] = eval(value)
-                elif key in ["learning_rate", "clip_range", "clip_range_vf", "delta_std"]:
+                elif key in ["learning_rate", "clip_range", "clip_range_vf"]:
                     if isinstance(value, str):
                         _, initial_value = value.split("_")
                         initial_value = float(initial_value)
@@ -510,7 +518,6 @@ def load_trial(storage: str, study_name: str, trial_id: int | None = None, conve
 
 
 def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
-    import flax
     import optax
 
     hyperparams = sampled_params.copy()
@@ -555,7 +562,7 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
         "learning_starts": 2_000,
         "policy_kwargs": {
             "net_arch": net_arch,
-            "activation_fn": flax.linen.elu,
+            "activation_fn": elu,
             "optimizer_class": optax.adamw,
         },
         **hyperparams,
