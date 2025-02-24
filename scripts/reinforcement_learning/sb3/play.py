@@ -128,7 +128,7 @@ def main():
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast)
 
-    if args_cli.algo != "ppo":
+    if "ppo" not in args_cli.algo:
         env = RescaleActionWrapper(env, percent=3)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
