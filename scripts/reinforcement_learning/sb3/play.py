@@ -67,10 +67,11 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.io import load_yaml
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
 
 
 def main():
@@ -79,7 +80,7 @@ def main():
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
-    agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
+    # agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
 
     # directory for logging into
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.algo, args_cli.task))
@@ -100,6 +101,8 @@ def main():
     else:
         checkpoint_path = args_cli.checkpoint
     log_dir = os.path.dirname(checkpoint_path)
+
+    agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
 
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
