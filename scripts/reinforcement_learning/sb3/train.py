@@ -111,6 +111,7 @@ import random
 import torch
 from datetime import datetime
 
+import jax
 import optax
 import sbx
 
@@ -308,8 +309,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
 
-    if "ppo" not in args_cli.algo:
-        env = RescaleActionWrapper(env, percent=3)
+    # if "ppo" not in args_cli.algo:
+    #     env = RescaleActionWrapper(env, percent=5.0)
+    from isaaclab_rl.sb3 import ClipActionWrapper
+    # For Unitree A1/GO1/... (action_scale=0.25)
+    env = ClipActionWrapper(env, percent=5)
+    # For Anymal
+    # env = ClipActionWrapper(env, percent=2.5)
 
     print(f"Action space: {env.action_space}")
 

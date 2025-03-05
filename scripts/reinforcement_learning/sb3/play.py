@@ -128,10 +128,16 @@ def main():
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast)
 
-    if "ppo" not in args_cli.algo:
-        env = RescaleActionWrapper(env, percent=3)
-    # else:
-    #     env = ClipActionWrapper(env, percent=3)
+    # Plot action taken
+    from isaaclab_rl.sb3 import PlotActionVecEnvWrapper
+    env = PlotActionVecEnvWrapper(env, plot_freq=1_000)
+
+    # if "ppo" not in args_cli.algo:
+    #     env = RescaleActionWrapper(env, percent=5)
+
+    from isaaclab_rl.sb3 import ClipActionWrapper
+    # env = ClipActionWrapper(env, percent=5)
+    env = ClipActionWrapper(env, percent=2.5)
 
     print(f"Action space: {env.action_space}")
 
