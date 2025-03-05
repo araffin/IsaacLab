@@ -116,7 +116,6 @@ import sbx
 
 # from stable_baselines3 import PPO
 import stable_baselines3 as sb3
-from isaaclab_rl.sb3 import LogEveryNTimesteps, RescaleActionWrapper, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -129,6 +128,8 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
+
+from isaaclab_rl.sb3 import LogEveryNTimesteps, RescaleActionWrapper, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config

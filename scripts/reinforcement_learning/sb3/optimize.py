@@ -73,9 +73,6 @@ import time
 import optuna
 import optunahub
 import sbx
-
-# from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, to_hyperparams
 from optuna.samplers import CmaEsSampler, RandomSampler, TPESampler
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -84,6 +81,9 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+
+# from stable_baselines3 import PPO
+from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, to_hyperparams
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
