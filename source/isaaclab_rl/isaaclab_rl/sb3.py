@@ -19,18 +19,18 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 from __future__ import annotations
 
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn  # noqa: F401
+from gymnasium import spaces
 from typing import Any
 
 import jax.numpy as jnp
+import seaborn as sns
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env import VecEnvWrapper
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
-import matplotlib.pyplot as plt
-import seaborn as sns
-from gymnasium import spaces
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
@@ -61,8 +61,10 @@ def elu(x, alpha=1.0):
     safe_x = jnp.where(x > 0, 0.0, x)
     return jnp.where(x > 0, x, alpha * jnp.expm1(safe_x))
 
+
 # For plotting
 sns.set_theme()
+
 
 class PlotActionVecEnvWrapper(VecEnvWrapper):
     """
@@ -102,9 +104,7 @@ class PlotActionVecEnvWrapper(VecEnvWrapper):
         n_rows = min(2, self.n_actions // 2 + 1)
         n_cols = max(self.n_actions // 2, 1)
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 10))
-        fig.suptitle(
-            f"Distribution of Actions per Dimension after {n_steps} steps", fontsize=16
-        )
+        fig.suptitle(f"Distribution of Actions per Dimension after {n_steps} steps", fontsize=16)
 
         # Flatten the axes array for easy iteration
         if n_rows > 1:
@@ -541,15 +541,15 @@ class RescaleActionWrapper(VecEnvWrapper):
 
 class ClipActionWrapper(VecEnvWrapper):
 
-    def __init__(self, vec_env, percent=5.0):
+    def __init__(self, vec_env, percent=5.0, low=None, high=None):
         super().__init__(vec_env)
         self.low, self.high = vec_env.action_space.low, vec_env.action_space.high
         self.percent = percent
         print(f"Action low before: {self.low}")
 
         self.action_space = gym.spaces.Box(
-            low=self.percent * 0.01 * self.low,
-            high=self.percent * 0.01 * self.high,
+            low=low if low is not None else self.percent * 0.01 * self.low,
+            high=high if high is not None else self.percent * 0.01 * self.high,
             shape=vec_env.action_space.shape,
             dtype=np.float32,
         )
@@ -566,6 +566,35 @@ class ClipActionWrapper(VecEnvWrapper):
 
     def step_wait(self):
         return self.venv.step_wait()
+
+
+class PenalizeCloseToBoundWrapper(VecEnvWrapper):
+
+    def __init__(self, vec_env, min_dist: float = 1.0, max_cost: float = 1.0):
+        super().__init__(vec_env)
+        self.n_actions = self.action_space.shape[0]
+        self.low = self.action_space.low + min_dist
+        self.high = self.action_space.high - min_dist
+        # Normalize with max_cost ** 2
+        self.coeff = max_cost / (min_dist**2)
+
+    def step_async(self, actions: np.ndarray) -> None:
+        self.actions = actions
+        self.venv.step_async(actions)
+
+    def reset(self) -> np.ndarray:
+        return self.venv.reset()
+
+    def step_wait(self):
+        obs, reward, done, info = self.venv.step_wait()
+        delta_low = (self.actions - self.low).min(axis=1)
+        delta_high = (self.high - self.actions).min(axis=1)
+        too_close_low = (delta_low < 0.0).nonzero()[0]
+        too_close_high = (delta_high < 0.0).nonzero()[0]
+        reward[too_close_low] -= self.coeff * delta_low[too_close_low] ** 2
+        reward[too_close_high] -= self.coeff * delta_low[too_close_high] ** 2
+
+        return obs, reward, done, info
 
 
 def load_trial(storage: str, study_name: str, trial_id: int | None = None, convert: bool = True) -> dict[str, Any]:

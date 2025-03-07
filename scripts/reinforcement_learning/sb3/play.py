@@ -130,15 +130,22 @@ def main():
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast)
 
     # Plot action taken
-    from isaaclab_rl.sb3 import PlotActionVecEnvWrapper
-    env = PlotActionVecEnvWrapper(env, plot_freq=1_000)
+    # from isaaclab_rl.sb3 import PlotActionVecEnvWrapper
+    # env = PlotActionVecEnvWrapper(env, plot_freq=1_000)
 
     # if "ppo" not in args_cli.algo:
     #     env = RescaleActionWrapper(env, percent=5)
 
-    # from isaaclab_rl.sb3 import ClipActionWrapper
-    # env = ClipActionWrapper(env, percent=5)
+    from isaaclab_rl.sb3 import ClipActionWrapper
+
+    # env = ClipActionWrapper(env, percent=3)
+    env = ClipActionWrapper(env, percent=5)
     # env = ClipActionWrapper(env, percent=2.5)
+    # from isaaclab_rl.sb3 import ClipActionWrapper
+
+    # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
+    # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
+    # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")
 
@@ -172,9 +179,6 @@ def main():
     agent = algo_class.load(checkpoint_path, env, print_system_info=True)
 
     # agent.policy._squash_output = False
-
-    # import ipdb
-    # ipdb.set_trace()
 
     dt = env.unwrapped.physics_dt
 
