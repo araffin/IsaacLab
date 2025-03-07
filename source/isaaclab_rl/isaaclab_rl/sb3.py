@@ -95,6 +95,8 @@ class PlotActionVecEnvWrapper(VecEnvWrapper):
     def plot(self) -> None:
         # Flatten the env dimension
         actions = self.actions.reshape(-1, self.n_actions)
+        print("Saving to /tmp/plot_actions.npz")
+        np.savez("/tmp/plot_actions.npz", actions=actions)
         n_steps = self.num_envs * self.n_steps
         # Create a figure with subplots for each action dimension
         n_rows = min(2, self.n_actions // 2 + 1)
