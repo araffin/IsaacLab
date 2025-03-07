@@ -312,9 +312,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # if "ppo" not in args_cli.algo:
     #     env = RescaleActionWrapper(env, percent=5.0)
-    from isaaclab_rl.sb3 import ClipActionWrapper
+    # from isaaclab_rl.sb3 import ClipActionWrapper
     # For Unitree A1/GO1/... (action_scale=0.25)
-    env = ClipActionWrapper(env, percent=5)
+    # env = ClipActionWrapper(env, percent=5)
     # For Anymal
     # env = ClipActionWrapper(env, percent=2.5)
 
@@ -398,7 +398,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # save the final model
     agent.save(os.path.join(log_dir, "model"))
     print("Saving to:")
-    print(os.path.join(log_dir, "model"))
+    print(os.path.join(log_dir, "model.zip"))
 
     if isinstance(env, VecNormalize):
         print("Saving normalization")

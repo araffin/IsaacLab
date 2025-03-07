@@ -136,9 +136,9 @@ def main():
     # if "ppo" not in args_cli.algo:
     #     env = RescaleActionWrapper(env, percent=5)
 
-    from isaaclab_rl.sb3 import ClipActionWrapper
+    # from isaaclab_rl.sb3 import ClipActionWrapper
     # env = ClipActionWrapper(env, percent=5)
-    env = ClipActionWrapper(env, percent=2.5)
+    # env = ClipActionWrapper(env, percent=2.5)
 
     print(f"Action space: {env.action_space}")
 
