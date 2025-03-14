@@ -229,6 +229,9 @@ optimized_tqc_hyperparams = dict(
     policy_delay=30,
     ent_coef="auto_0.00631",
 )
+# Also working for TQC, with 1024 envs:
+# train_freq:4 gradient_steps:60 policy_delay:5 batch_size:1024
+# train_freq:4 gradient_steps:30 policy_delay:5 batch_size:2048
 
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
@@ -312,15 +315,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # if "ppo" not in args_cli.algo:
     #     env = RescaleActionWrapper(env, percent=5.0)
-    # from isaaclab_rl.sb3 import ClipActionWrapper
-    # For Unitree A1/GO1/... (action_scale=0.25)
-    # env = ClipActionWrapper(env, percent=5)
-    # env = ClipActionWrapper(env, percent=3)
-    # For Anymal
-    # env = ClipActionWrapper(env, percent=2.5)
     from isaaclab_rl.sb3 import ClipActionWrapper
 
-    env = ClipActionWrapper(env, percent=3.0)
+    # For Unitree A1/GO1/... (action_scale=0.25)
+    # env = ClipActionWrapper(env, percent=5)
+    env = ClipActionWrapper(env, percent=3)
+    # For Anymal
+    # env = ClipActionWrapper(env, percent=2.5)
+    # from isaaclab_rl.sb3 import ClipActionWrapper
+
+    # env = ClipActionWrapper(env, percent=3.0)
     # from isaaclab_rl.sb3 import PenalizeCloseToBoundWrapper
     # env = PenalizeCloseToBoundWrapper(env, min_dist=0.5, max_cost=1.0)
 
