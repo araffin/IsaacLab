@@ -124,7 +124,7 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     net_arch_complexity = trial.suggest_int("net_arch_complexity", 1, 3)
     # activation_fn = trial.suggest_categorical("activation_fn", ["elu", "relu", "gelu"])
     # From 1 to 8
-    train_freq_pow = trial.suggest_int("policy_delay_pow", 0, 3)
+    train_freq_pow = trial.suggest_int("train_freq_pow", 0, 3)
     # From 1 to 1024
     gradient_steps_pow = trial.suggest_int("gradient_steps_pow", 0, 10)
     # gradient_steps = trial.suggest_categorical("gradient_steps", [64, 128, 256, 512])
