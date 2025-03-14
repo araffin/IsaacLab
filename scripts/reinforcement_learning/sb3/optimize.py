@@ -112,10 +112,11 @@ class TimeoutCallback(BaseCallback):
 
 def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     """Sampler for TQC hyperparameters."""
+    # From 0.975 to 0.995
     one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.005, 0.025, log=True)
     learning_rate = trial.suggest_float("learning_rate", 1e-4, 0.002, log=True)
     # qf_learning_rate = trial.suggest_float("qf_learning_rate", 1e-5, 0.01, log=True)
-    ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.1, log=True)
+    ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.02, log=True)
     # From 128 to 2*12 = 4096
     batch_size_pow = trial.suggest_int("batch_size_pow", 7, 12, log=True)
     # net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba", "large"])
@@ -289,11 +290,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         env.seed(args_cli.seed)
         agent = sbx.TQC(env=env, **hyperparams)
         # Start after warmup
-        # optimize for best perf after 6 minutes
-        callback = TimeoutCallback(timeout=60 * 6, start_after=3_000)
+        # optimize for best perf after 5 minutes
+        callback = TimeoutCallback(timeout=60 * 5, start_after=3_000)
         agent.learn(total_timesteps=int(3e7), callback=callback)
         trial.set_user_attr("num_timesteps", agent.num_timesteps)
         env.seed(args_cli.seed)
+        # do not update them at test time
+        env.training = False
+        # reward normalization is not needed at test time
+        env.norm_reward = False
         mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
         trial.set_user_attr("std_reward", std_reward)
 
