@@ -112,34 +112,43 @@ class TimeoutCallback(BaseCallback):
 
 def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     """Sampler for TQC hyperparameters."""
-    one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.005, 0.02, log=True)
-    learning_rate = trial.suggest_float("learning_rate", 5e-5, 0.002, log=True)
+    one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.005, 0.025, log=True)
+    learning_rate = trial.suggest_float("learning_rate", 1e-4, 0.002, log=True)
     # qf_learning_rate = trial.suggest_float("qf_learning_rate", 1e-5, 0.01, log=True)
     ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.1, log=True)
-    # batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
-    batch_size = trial.suggest_int("batch_size", 128, 1024, log=True)
+    # From 128 to 2*12 = 4096
+    batch_size_pow = trial.suggest_int("batch_size_pow", 7, 12, log=True)
     # net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba", "large"])
     # Use int to be able to use CMA-ES
-    net_arch_complexity = trial.suggest_int("net_arch_complexity", 0, 3)
+    net_arch_complexity = trial.suggest_int("net_arch_complexity", 1, 3)
     # activation_fn = trial.suggest_categorical("activation_fn", ["elu", "relu", "gelu"])
-    train_freq = trial.suggest_int("train_freq", 1, 15)
-    gradient_steps = trial.suggest_int("gradient_steps", 128, 1024)
+    # From 1 to 8
+    train_freq_pow = trial.suggest_int("policy_delay_pow", 0, 3)
+    # From 1 to 1024
+    gradient_steps_pow = trial.suggest_int("gradient_steps_pow", 0, 10)
     # gradient_steps = trial.suggest_categorical("gradient_steps", [64, 128, 256, 512])
     # learning_starts = trial.suggest_categorical("learning_starts", [100, 1000, 2000])
-    policy_delay = trial.suggest_int("policy_delay", 1, 30)
-
+    # From 1 to 32
+    policy_delay_pow = trial.suggest_int("policy_delay_pow", 0, 5)
+    # Polyak coeff
+    tau = trial.suggest_float("tau", 0.001, 0.05, log=True)
     # Display true values
     trial.set_user_attr("gamma", 1 - one_minus_gamma)
+    trial.set_user_attr("batch_size", 2**batch_size_pow)
+    trial.set_user_attr("gradient_steps", 2**gradient_steps_pow)
+    trial.set_user_attr("policy_delay", 2**policy_delay_pow)
+    trial.set_user_attr("train_freq", 2**train_freq_pow)
 
     return to_hyperparams({
-        "train_freq": train_freq,
-        "gradient_steps": gradient_steps,
-        "batch_size": batch_size,
+        "train_freq_pow": train_freq_pow,
+        "gradient_steps_pow": gradient_steps_pow,
+        "batch_size_pow": batch_size_pow,
+        "tau": tau,
         # "learning_starts": learning_starts,
         "one_minus_gamma": one_minus_gamma,
         "learning_rate": learning_rate,
         # "qf_learning_rate": qf_learning_rate,
-        "policy_delay": policy_delay,
+        "policy_delay_pow": policy_delay_pow,
         "ent_coef_init": ent_coef_init,
         "net_arch_complexity": net_arch_complexity,
         # "activation_fn": activation_fn,

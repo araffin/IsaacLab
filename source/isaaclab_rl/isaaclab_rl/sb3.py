@@ -631,6 +631,11 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
         net_arch = sampled_params["net_arch"]
         del hyperparams["net_arch"]
 
+    for name in ["batch_size", "gradient_steps", "policy_delay", "train_freq"]:
+        if f"{name}_pow" in sampled_params:
+            hyperparams[name] = 2 ** sampled_params[f"{name}_pow"]
+            del hyperparams[f"{name}_pow"]
+
     policy = "SimbaPolicy" if net_arch == "simba" else "MlpPolicy"
 
     net_arch = {
