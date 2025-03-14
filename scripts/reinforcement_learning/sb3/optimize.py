@@ -195,15 +195,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=True, keep_info=not args_cli.no_info)
 
-    if args_cli.algo != "ppo":
-        env = RescaleActionWrapper(env, percent=3)
+    # if args_cli.algo != "ppo":
+    #     env = RescaleActionWrapper(env, percent=3)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
+    from isaaclab_rl.sb3 import ClipActionWrapper
+
+    env = ClipActionWrapper(env, percent=3)
 
     print(f"Action space: {env.action_space}")
-
-    # import ipdb
-    # ipdb.set_trace()
 
     print("Normalizing input")
     env = VecNormalize(
