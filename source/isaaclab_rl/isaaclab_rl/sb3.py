@@ -575,8 +575,8 @@ class PenalizeCloseToBoundWrapper(VecEnvWrapper):
         self.n_actions = self.action_space.shape[0]
         self.low = self.action_space.low + min_dist
         self.high = self.action_space.high - min_dist
-        # Normalize with max_cost ** 2
-        self.coeff = max_cost / (min_dist**2)
+        self.coeff = max_cost
+        self.min_dist = min_dist
 
     def step_async(self, actions: np.ndarray) -> None:
         self.actions = actions
@@ -591,8 +591,8 @@ class PenalizeCloseToBoundWrapper(VecEnvWrapper):
         delta_high = (self.high - self.actions).min(axis=1)
         too_close_low = (delta_low < 0.0).nonzero()[0]
         too_close_high = (delta_high < 0.0).nonzero()[0]
-        reward[too_close_low] -= self.coeff * delta_low[too_close_low] ** 2
-        reward[too_close_high] -= self.coeff * delta_low[too_close_high] ** 2
+        reward[too_close_low] -= self.coeff * (delta_low[too_close_low] / self.min_dist) ** 2
+        reward[too_close_high] -= self.coeff * (delta_low[too_close_high] / self.min_dist) ** 2
 
         return obs, reward, done, info
 
@@ -665,6 +665,7 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
             "net_arch": net_arch,
             "activation_fn": elu,
             "optimizer_class": optax.adamw,
+            "layer_norm": True,
         },
         **hyperparams,
     }
