@@ -133,6 +133,9 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     policy_delay_pow = trial.suggest_int("policy_delay_pow", 0, 5)
     # Polyak coeff
     tau = trial.suggest_float("tau", 0.001, 0.05, log=True)
+    # For Gaussian actor
+    log_std_init = trial.suggest_float("log_std_init", -2.5, 0.0)
+
     # Display true values
     trial.set_user_attr("gamma", 1 - one_minus_gamma)
     trial.set_user_attr("batch_size", 2**batch_size_pow)
@@ -154,6 +157,7 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
         "net_arch_complexity": net_arch_complexity,
         # "activation_fn": activation_fn,
         # "optimizer_class": optax.adamw,
+        "log_std_init": log_std_init,
     })
 
 
@@ -199,9 +203,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     #     env = RescaleActionWrapper(env, percent=3)
     # else:
     #     env = ClipActionWrapper(env, percent=3)
-    from isaaclab_rl.sb3 import ClipActionWrapper
+    # from isaaclab_rl.sb3 import ClipActionWrapper
 
-    env = ClipActionWrapper(env, percent=3)
+    # env = ClipActionWrapper(env, percent=3)
 
     print(f"Action space: {env.action_space}")
 

@@ -657,6 +657,15 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
     if "learning_starts" in hyperparams:
         del hyperparams["learning_starts"]
 
+    log_std_init = 0.0
+    squash_output = True
+    ortho_init = False
+    if "log_std_init" in sampled_params:
+        log_std_init = sampled_params["log_std_init"]
+        squash_output = False
+        ortho_init = True
+        del hyperparams["log_std_init"]
+
     return {
         "policy": policy,
         "buffer_size": 800_000,
@@ -666,6 +675,9 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
             "activation_fn": elu,
             "optimizer_class": optax.adamw,
             "layer_norm": True,
+            "log_std_init": log_std_init,
+            "squash_output": squash_output,
+            "ortho_init": ortho_init,
         },
         **hyperparams,
     }

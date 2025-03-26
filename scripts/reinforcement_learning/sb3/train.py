@@ -205,7 +205,7 @@ simba_hyperparams = dict(
     # top_quantiles_to_drop_per_net=5,
 )
 
-# Optimized with TQC on A1 flat for 2048 envs
+# Optimized with TQC on A1 flat for 1024 envs
 optimized_tqc_hyperparams = dict(
     policy="MlpPolicy",
     buffer_size=800_000,
@@ -316,11 +316,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # if "ppo" not in args_cli.algo:
     #     env = RescaleActionWrapper(env, percent=5.0)
-    from isaaclab_rl.sb3 import ClipActionWrapper
+    # from isaaclab_rl.sb3 import ClipActionWrapper
 
     # For Unitree A1/GO1/... (action_scale=0.25)
     # env = ClipActionWrapper(env, percent=5)
-    env = ClipActionWrapper(env, percent=3)
+    # env = ClipActionWrapper(env, percent=3)
+    # env = ClipActionWrapper(env, percent=10)
     # For Anymal
     # env = ClipActionWrapper(env, percent=2.5)
     # from isaaclab_rl.sb3 import ClipActionWrapper
@@ -345,6 +346,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("Loading from Optuna study...")
         hyperparams = load_trial(args_cli.storage, args_cli.study_name, args_cli.trial_id)
         agent_cfg.update(hyperparams)
+
+    # Special: squash output and log_std_init
+    agent_cfg["policy_kwargs"]["squash_output"] = False
+    agent_cfg["policy_kwargs"]["ortho_init"] = True
+    agent_cfg["policy_kwargs"]["log_std_init"] = -0.5
 
     if args_cli.hyperparams is not None:
         print("Updating hyperparams from cli")
