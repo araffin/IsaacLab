@@ -222,7 +222,7 @@ optimized_tqc_hyperparams = dict(
     train_freq=4,
     # learning_rate=0.000375,
     learning_rate=4e-4,
-    qf_learning_rate=7e-4,
+    # qf_learning_rate=7e-4,
     gamma=0.981,
     batch_size=256,
     gradient_steps=650,
@@ -324,17 +324,20 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # For Anymal
     # env = ClipActionWrapper(env, percent=2.5)
     # from isaaclab_rl.sb3 import ClipActionWrapper
-
     # env = ClipActionWrapper(env, percent=3.0)
-    # from isaaclab_rl.sb3 import PenalizeCloseToBoundWrapper
-    # env = PenalizeCloseToBoundWrapper(env, min_dist=0.5, max_cost=1.0)
-
     # From PPO Run
     # from isaaclab_rl.sb3 import ClipActionWrapper
 
     # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
     # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
     # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
+
+    # from isaaclab_rl.sb3 import PenalizeCloseToBoundWrapper
+
+    # min_dist, max_cost = 0.5, 0.5
+    # print(f"{min_dist=}, {max_cost=}")
+
+    # env = PenalizeCloseToBoundWrapper(env, min_dist=min_dist, max_cost=max_cost)
 
     print(f"Action space: {env.action_space}")
 
