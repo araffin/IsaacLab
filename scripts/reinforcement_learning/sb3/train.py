@@ -232,6 +232,7 @@ optimized_tqc_hyperparams = dict(
 # Also working for TQC, with 1024 envs:
 # train_freq:4 gradient_steps:60 policy_delay:5 batch_size:1024
 # train_freq:4 gradient_steps:30 policy_delay:5 batch_size:2048
+# PLACEHOLDER: Extension template (do not remove this comment)
 
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
