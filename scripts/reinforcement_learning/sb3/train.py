@@ -348,9 +348,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         agent_cfg.update(hyperparams)
 
     # Special: squash output and log_std_init
-    agent_cfg["policy_kwargs"]["squash_output"] = False
-    agent_cfg["policy_kwargs"]["ortho_init"] = True
-    agent_cfg["policy_kwargs"]["log_std_init"] = -0.5
+    # agent_cfg["policy_kwargs"]["squash_output"] = False
+    # agent_cfg["policy_kwargs"]["ortho_init"] = True
+    # agent_cfg["policy_kwargs"]["log_std_init"] = -0.5
 
     if args_cli.hyperparams is not None:
         print("Updating hyperparams from cli")

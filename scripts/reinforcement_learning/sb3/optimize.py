@@ -119,9 +119,9 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.02, log=True)
     # From 128 to 2*12 = 4096
     batch_size_pow = trial.suggest_int("batch_size_pow", 7, 12, log=True)
-    # net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba", "large"])
+    # net_arch = trial.suggest_categorical("net_arch", ["default", "medium", "simba", "large", "xlarge"])
     # Use int to be able to use CMA-ES
-    net_arch_complexity = trial.suggest_int("net_arch_complexity", 1, 3)
+    net_arch_complexity = trial.suggest_int("net_arch_complexity", 3, 4)
     # activation_fn = trial.suggest_categorical("activation_fn", ["elu", "relu", "gelu"])
     # From 1 to 8
     train_freq_pow = trial.suggest_int("train_freq_pow", 0, 3)
