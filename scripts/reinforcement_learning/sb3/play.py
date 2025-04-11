@@ -133,6 +133,7 @@ def main():
 
     # Plot action taken
     # from isaaclab_rl.sb3 import PlotActionVecEnvWrapper
+
     # env = PlotActionVecEnvWrapper(env, plot_freq=1_000)
 
     # if "ppo" not in args_cli.algo:
@@ -144,7 +145,11 @@ def main():
     # env = ClipActionWrapper(env, percent=10)
     # env = ClipActionWrapper(env, percent=5)
     # env = ClipActionWrapper(env, percent=2.5)
-    # from isaaclab_rl.sb3 import ClipActionWrapper
+    from isaaclab_rl.sb3 import ClipActionWrapper
+
+    low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+    high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
+    env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
     # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
