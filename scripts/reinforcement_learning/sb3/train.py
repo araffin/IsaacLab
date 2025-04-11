@@ -337,15 +337,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # low = np.array([-6.7, -7.8, -6.3, -5.4, -8.4, -8.7, -4.4, -5.6, -13.4, -19.0, -11.2, -9.0])
     # high = np.array([13.1, 6.5, 15.5, 11.8, 9.6, 8.7, 9.5, 7.7, 17.5, 10.3, 8.9, 13.5])
     # np.percentile(a["actions"], 2.5, axis=0)
-    low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+    # low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
     # 1%
     # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
     # np.percentile(a["actions"], 97.5, axis=0)
-    high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
+    # high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
     # 99%
     # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
-
-    env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
+    # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     (Path(log_dir) / "action_space.txt").write_text(str(env.action_space))
 
@@ -367,7 +366,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # agent_cfg["policy_kwargs"]["squash_output"] = False
     # agent_cfg["policy_kwargs"]["ortho_init"] = True
     # agent_cfg["policy_kwargs"]["log_std_init"] = -0.5
-    agent_cfg["policy_kwargs"]["net_arch"] = [1024, 512, 256]
+    # agent_cfg["policy_kwargs"]["net_arch"] = [1024, 512, 256]
 
     if args_cli.hyperparams is not None:
         print("Updating hyperparams from cli")

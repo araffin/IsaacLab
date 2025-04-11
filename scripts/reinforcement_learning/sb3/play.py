@@ -139,21 +139,27 @@ def main():
     # if "ppo" not in args_cli.algo:
     #     env = RescaleActionWrapper(env, percent=5)
 
-    # from isaaclab_rl.sb3 import ClipActionWrapper
-
-    # env = ClipActionWrapper(env, percent=3)
-    # env = ClipActionWrapper(env, percent=10)
-    # env = ClipActionWrapper(env, percent=5)
-    # env = ClipActionWrapper(env, percent=2.5)
     from isaaclab_rl.sb3 import ClipActionWrapper
 
-    low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
-    high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
-    env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
+    # env = ClipActionWrapper(env, percent=3)
 
-    # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
-    # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
-    # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
+    maybe_action_space = Path(log_dir) / "action_space.txt"
+    if maybe_action_space.is_file():
+        space_str = maybe_action_space.read_text()
+        if "[" in space_str:
+            low_str, high_str, *_ = space_str.split(", ")
+            low = np.array(eval(low_str.replace("Box(", "").replace("  ", " ").replace(" ", ",")))
+            high = np.array(eval(high_str.replace("  ", " ").replace(" ", ",")))
+        else:
+            low, high = None, None
+    else:
+        low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+        high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
+        # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
+        # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
+
+    if low and high:
+        env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")
 
