@@ -138,9 +138,13 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 ppo_defaults = dict(
     n_steps=25,
     batch_size=6400,  # for 1024 envs, to have 4 minibatches
+    # n_steps=24,
+    # batch_size=24576, # 4 mini-batches for 4096 envs
+    # target_kl=0.01,
     gae_lambda=0.95,
     n_epochs=5,
     ent_coef=0.01,
+    # ent_coef=0.005, # For Anymal-C env
     learning_rate=1e-3,
     clip_range=0.2,
     vf_coef=1.0,
