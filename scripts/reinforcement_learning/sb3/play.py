@@ -158,7 +158,7 @@ def main():
         # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
         # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
 
-    if low and high:
+    if low is not None and high is not None:
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")
