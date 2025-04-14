@@ -39,6 +39,7 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument("--fast", action="store_true", default=False, help="Faster correct training but not extras logged.")
+parser.add_argument("--plot-action-dist", action="store_true", default=False, help="Plot action distribution.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -69,7 +70,7 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import load_yaml
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
-from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, process_sb3_cfg
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
@@ -132,16 +133,10 @@ def main():
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast)
 
     # Plot action taken
-    # from isaaclab_rl.sb3 import PlotActionVecEnvWrapper
+    if args_cli.plot_action_dist:
+        from isaaclab_rl.sb3 import PlotActionVecEnvWrapper
 
-    # env = PlotActionVecEnvWrapper(env, plot_freq=1_000)
-
-    # if "ppo" not in args_cli.algo:
-    #     env = RescaleActionWrapper(env, percent=5)
-
-    from isaaclab_rl.sb3 import ClipActionWrapper
-
-    # env = ClipActionWrapper(env, percent=3)
+        env = PlotActionVecEnvWrapper(env, plot_freq=1_000)
 
     maybe_action_space = Path(log_dir) / "action_space.txt"
     if maybe_action_space.is_file():
@@ -159,6 +154,9 @@ def main():
         # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
 
     if low is not None and high is not None:
+        from isaaclab_rl.sb3 import ClipActionWrapper
+
+        # env = ClipActionWrapper(env, percent=3)
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")

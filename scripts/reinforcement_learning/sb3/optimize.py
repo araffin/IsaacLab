@@ -83,7 +83,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 # from stable_baselines3 import PPO
-from isaaclab_rl.sb3 import RescaleActionWrapper, Sb3VecEnvWrapper, to_hyperparams
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, to_hyperparams
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -199,13 +199,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=True, keep_info=not args_cli.no_info)
 
-    # if args_cli.algo != "ppo":
-    #     env = RescaleActionWrapper(env, percent=3)
-    # else:
+    # if "ppo" not in args_cli.algo:
+    #     from isaaclab_rl.sb3 import ClipActionWrapper
     #     env = ClipActionWrapper(env, percent=3)
-    # from isaaclab_rl.sb3 import ClipActionWrapper
-
-    # env = ClipActionWrapper(env, percent=3)
 
     print(f"Action space: {env.action_space}")
 

@@ -111,7 +111,6 @@ import random
 import torch
 from datetime import datetime
 
-import jax
 import optax
 import sbx
 
@@ -130,7 +129,7 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
-from isaaclab_rl.sb3 import LogEveryNTimesteps, RescaleActionWrapper, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
+from isaaclab_rl.sb3 import LogEveryNTimesteps, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -255,7 +254,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         agent_cfg = {
             "n_timesteps": 5e7,
             # "n_timesteps": 5e7,
-            "normalize_input": True,
+            # Note: no normalization for Anymal Rough env
+            "normalize_input": False,
             "normalize_value": False,
             "clip_obs": 10.0,
             "seed": 42,
@@ -326,29 +326,35 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     #     env = RescaleActionWrapper(env, percent=5.0)
     from isaaclab_rl.sb3 import ClipActionWrapper
 
-    # For Unitree A1/GO1/... (action_scale=0.25)
-    # env = ClipActionWrapper(env, percent=3)
-    # For Anymal
-    # env = ClipActionWrapper(env, percent=2.5)
-    # From PPO Run
-    # from isaaclab_rl.sb3 import ClipActionWrapper
-    # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
-    # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
-    # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
-    # From PPO Run on Rough terrain
-    # Min/Max
-    # low = np.array([-6.7, -7.8, -6.3, -5.4, -8.4, -8.7, -4.4, -5.6, -13.4, -19.0, -11.2, -9.0])
-    # high = np.array([13.1, 6.5, 15.5, 11.8, 9.6, 8.7, 9.5, 7.7, 17.5, 10.3, 8.9, 13.5])
-    # np.percentile(a["actions"], 2.5, axis=0)
-    low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
-    # 1%
-    # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
-    # np.percentile(a["actions"], 97.5, axis=0)
-    high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
-    # 99%
-    # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
+    low = None
+    if "Unitree-A" in args_cli.task or "Unitree-Go" in args_cli.task:
+        # For Unitree A1/GO1/... (action_scale=0.25)
+        # env = ClipActionWrapper(env, percent=3)
+        # For Anymal
+        # env = ClipActionWrapper(env, percent=2.5)
+        # From PPO Run
+        # from isaaclab_rl.sb3 import ClipActionWrapper
+        # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
+        # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
+        # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
+        # From PPO Run on Rough terrain
+        # Min/Max
+        # low = np.array([-6.7, -7.8, -6.3, -5.4, -8.4, -8.7, -4.4, -5.6, -13.4, -19.0, -11.2, -9.0])
+        # high = np.array([13.1, 6.5, 15.5, 11.8, 9.6, 8.7, 9.5, 7.7, 17.5, 10.3, 8.9, 13.5])
+        # np.percentile(a["actions"], 2.5, axis=0)
+        low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+        # 1%
+        # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
+        # np.percentile(a["actions"], 97.5, axis=0)
+        high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
+        # 99%
+        # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
+    elif "-Anymal" in args_cli.task:
+        # Anymal-C Rough
+        low = np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
+        high = np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
 
-    if "ppo" not in args_cli.algo:
+    if "ppo" not in args_cli.algo and low is not None:
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     (Path(log_dir) / "action_space.txt").write_text(str(env.action_space))
