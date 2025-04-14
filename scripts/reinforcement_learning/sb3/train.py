@@ -372,14 +372,20 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("Updating hyperparams from cli")
         agent_cfg.update(args_cli.hyperparams)
 
-    if "normalize_input" in agent_cfg:
-        print("Normalizing input")
+    norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
+    norm_args = {}
+    for key in norm_keys:
+        if key in agent_cfg:
+            norm_args[key] = agent_cfg.pop(key)
+
+    if norm_args and norm_args.get("normalize_input"):
+        print(f"Normalizing input, {norm_args=}")
         env = VecNormalize(
             env,
             training=True,
-            norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
-            norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
-            clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
+            norm_obs=norm_args["normalize_input"],
+            norm_reward=norm_args.get("normalize_input", False),
+            clip_obs=norm_args.get("clip_obs", 100.0),
             gamma=agent_cfg["gamma"],
             clip_reward=np.inf,
         )
