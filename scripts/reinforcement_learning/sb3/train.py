@@ -153,6 +153,7 @@ ppo_defaults = dict(
     policy_kwargs=dict(
         activation_fn=elu,
         net_arch=[512, 256, 128],
+        optimizer_kwargs=dict(eps=1e-7),
         # net_arch=[512, 512, 256]
         # net_arch=[128, 128, 128],
         # log_std_init=-2.5,
