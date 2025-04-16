@@ -192,7 +192,7 @@ def main():
 
     # agent.policy._squash_output = False
 
-    dt = env.unwrapped.physics_dt
+    dt = env.unwrapped.step_dt
 
     # from stable_baselines3.common.evaluation import evaluate_policy
 
