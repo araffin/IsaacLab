@@ -147,16 +147,10 @@ def main():
             high = np.array(eval(high_str.replace("  ", " ").replace(" ", ",")))
         else:
             low, high = None, None
-    else:
-        low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
-        high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
-        # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
-        # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
 
     if low is not None and high is not None:
         from isaaclab_rl.sb3 import ClipActionWrapper
 
-        # env = ClipActionWrapper(env, percent=3)
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")
@@ -189,8 +183,6 @@ def main():
     algo_class = {"ppo": sbx.PPO, "sac": sbx.SAC, "tqc": sbx.TQC}[args_cli.algo]
 
     agent = algo_class.load(checkpoint_path, env, print_system_info=True)
-
-    # agent.policy._squash_output = False
 
     dt = env.unwrapped.step_dt
 

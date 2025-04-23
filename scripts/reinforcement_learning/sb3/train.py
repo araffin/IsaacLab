@@ -143,7 +143,6 @@ ppo_defaults = dict(
     gae_lambda=0.95,
     n_epochs=5,
     ent_coef=0.01,
-    # ent_coef=0.005, # For Anymal-C env
     learning_rate=1e-3,
     clip_range=0.2,
     vf_coef=1.0,
@@ -153,18 +152,6 @@ ppo_defaults = dict(
         activation_fn=elu,
         net_arch=[512, 256, 128],
         optimizer_kwargs=dict(eps=1e-7),
-        # net_arch=[512, 512, 256]
-        # net_arch=[128, 128, 128],
-        # log_std_init=-2.5,
-    ),
-)
-
-ppo_simba = dict(
-    policy="SimbaPolicy",
-    policy_kwargs=dict(
-        activation_fn=elu,
-        # net_arch=[512, 256, 128],
-        net_arch=[128, 128],
     ),
 )
 
@@ -172,45 +159,12 @@ ppo_sb3 = dict(
     policy="MlpPolicy",
     policy_kwargs=dict(
         activation_fn=torch.nn.ELU,
-        # net_arch=[128, 128, 128],
         net_arch=[512, 256, 128],
         max_grad_norm=1.0,
-        # log_std_init=-2.0,
-        # use_expln=True,
-        # squash_output=True,
     ),
-    # use_sde=True,
-    # sde_sample_freq=8,
-    # TODO: use AdamW too
 )
 ppo_sb3_defaults = deepcopy(ppo_defaults)
 ppo_sb3_defaults.update(ppo_sb3)
-
-simba_hyperparams = dict(
-    policy="SimbaPolicy",
-    buffer_size=800_000,
-    policy_kwargs={
-        "optimizer_class": optax.adamw,
-        # "optimizer_kwargs": {"eps": 1e-5},
-        "activation_fn": elu,
-        "net_arch": {"pi": [128, 128], "qf": [256, 256]},
-        # "net_arch": [128, 128, 128],
-        "n_critics": 2,
-    },
-    learning_starts=1_000,
-    # param_resets=[int(i * 1e7) for i in range(1, 10)],
-    train_freq=5,
-    # learning_rate=7e-4,
-    gamma=0.985,
-    batch_size=512,
-    gradient_steps=512,
-    policy_delay=10,
-    # ent_coef=0.001,
-    ent_coef="auto_0.01",
-    # target_entropy=-10.0,
-    # tau=0.008,
-    # top_quantiles_to_drop_per_net=5,
-)
 
 # Optimized with TQC on A1 flat for 1024 envs
 optimized_tqc_hyperparams = dict(
@@ -220,25 +174,17 @@ optimized_tqc_hyperparams = dict(
         "optimizer_class": optax.adamw,
         "activation_fn": elu,
         "net_arch": [512, 256, 128],
-        # "net_arch": {"pi": [128, 128, 128], "qf": [512, 256, 128]},
         "n_critics": 2,
         "layer_norm": True,
     },
     learning_starts=1_000,
-    # param_resets=[int(i * 1e7) for i in range(1, 10)],
     train_freq=4,
-    # learning_rate=0.000375,
     learning_rate=4e-4,
-    # qf_learning_rate=7e-4,
-    gamma=0.981,
     batch_size=256,
     gradient_steps=650,
     policy_delay=30,
-    ent_coef="auto_0.00631",
 )
-# Also working for TQC, with 1024 envs:
-# train_freq:4 gradient_steps:60 policy_delay:5 batch_size:1024
-# train_freq:4 gradient_steps:30 policy_delay:5 batch_size:2048
+
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
@@ -253,9 +199,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("Loading SB3 default")
         agent_cfg = {
             "n_timesteps": 5e7,
-            # "n_timesteps": 5e7,
-            # Note: no normalization for Anymal Rough env
-            "normalize_input": False,
+            "normalize_input": True,
             "normalize_value": False,
             "clip_obs": 10.0,
             "seed": 42,
@@ -322,49 +266,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
 
+    # Clip action space (for SACs):
     # if "ppo" not in args_cli.algo:
-    #     env = RescaleActionWrapper(env, percent=5.0)
-    from isaaclab_rl.sb3 import ClipActionWrapper
-
-    low = None
-    if "Unitree-A" in args_cli.task or "Unitree-Go" in args_cli.task:
-        # For Unitree A1/GO1/... (action_scale=0.25)
-        # env = ClipActionWrapper(env, percent=3)
-        # For Anymal
-        # env = ClipActionWrapper(env, percent=2.5)
-        # From PPO Run
-        # from isaaclab_rl.sb3 import ClipActionWrapper
-        # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
-        # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
-        # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
-        # From PPO Run on Rough terrain
-        # Min/Max
-        # low = np.array([-6.7, -7.8, -6.3, -5.4, -8.4, -8.7, -4.4, -5.6, -13.4, -19.0, -11.2, -9.0])
-        # high = np.array([13.1, 6.5, 15.5, 11.8, 9.6, 8.7, 9.5, 7.7, 17.5, 10.3, 8.9, 13.5])
-        # np.percentile(a["actions"], 2.5, axis=0)
-        low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
-        # 1%
-        # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
-        # np.percentile(a["actions"], 97.5, axis=0)
-        high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
-        # 99%
-        # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
-    elif "-Anymal" in args_cli.task:
-        # Anymal-C Rough
-        low = np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
-        high = np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
-
-    if "ppo" not in args_cli.algo and low is not None:
-        env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
+    #     from isaaclab_rl.sb3 import ClipActionWrapper
+    #     env = ClipActionWrapper(env, percent=3)
 
     (Path(log_dir) / "action_space.txt").write_text(str(env.action_space))
-
-    # from isaaclab_rl.sb3 import PenalizeCloseToBoundWrapper
-
-    # min_dist, max_cost = 0.5, 0.5
-    # print(f"{min_dist=}, {max_cost=}")
-
-    # env = PenalizeCloseToBoundWrapper(env, min_dist=min_dist, max_cost=max_cost)
 
     print(f"Action space: {env.action_space}")
 
@@ -372,12 +279,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("Loading from Optuna study...")
         hyperparams = load_trial(args_cli.storage, args_cli.study_name, args_cli.trial_id)
         agent_cfg.update(hyperparams)
-
-    # Special: squash output and log_std_init
-    # agent_cfg["policy_kwargs"]["squash_output"] = False
-    # agent_cfg["policy_kwargs"]["ortho_init"] = True
-    # agent_cfg["policy_kwargs"]["log_std_init"] = -0.5
-    # agent_cfg["policy_kwargs"]["net_arch"] = [1024, 512, 256]
 
     if args_cli.hyperparams is not None:
         print("Updating hyperparams from cli")
@@ -400,13 +301,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             gamma=agent_cfg["gamma"],
             clip_reward=np.inf,
         )
-
-    # agent_cfg["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
-    # agent_cfg["policy_kwargs"]["squash_output"] = squash_output
-    # agent_cfg["policy_kwargs"]["optimizer_class"] = optax.adam
-    # agent_cfg["policy_kwargs"]["optimizer_kwargs"] = {"eps": 1e-5}
-    # agent_cfg["policy_kwargs"]["ortho_init"] = True
-    # agent_cfg["policy_kwargs"]["net_arch"] = [512, 256, 128]
 
     # Sort for printing
     hyperparams = {key: agent_cfg[key] for key in sorted(agent_cfg.keys())}
