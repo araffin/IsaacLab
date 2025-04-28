@@ -621,8 +621,9 @@ def to_hyperparams(sampled_params: dict[str, Any]) -> dict[str, Any]:
         hyperparams["ent_coef"] = f"auto_{hyperparams['ent_coef_init']}"
         del hyperparams["ent_coef_init"]
 
-    hyperparams["gamma"] = 1 - sampled_params["one_minus_gamma"]
-    del hyperparams["one_minus_gamma"]
+    if "one_minus_gamma" in hyperparams:
+        hyperparams["gamma"] = 1 - sampled_params["one_minus_gamma"]
+        del hyperparams["one_minus_gamma"]
 
     if "net_arch_complexity" in sampled_params:
         idx = sampled_params["net_arch_complexity"]

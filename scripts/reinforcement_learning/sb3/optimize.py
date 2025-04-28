@@ -76,6 +76,7 @@ import sbx
 from optuna.samplers import CmaEsSampler, RandomSampler, TPESampler
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
+import numpy as np
 
 # from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecNormalize
@@ -112,8 +113,7 @@ class TimeoutCallback(BaseCallback):
 
 def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     """Sampler for TQC hyperparameters."""
-    # From 0.975 to 0.995
-    one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.005, 0.025, log=True)
+    gamma = trial.suggest_float("gamma", 0.975, 0.995)
     learning_rate = trial.suggest_float("learning_rate", 1e-4, 0.002, log=True)
     # qf_learning_rate = trial.suggest_float("qf_learning_rate", 1e-5, 0.01, log=True)
     ent_coef_init = trial.suggest_float("ent_coef_init", 0.001, 0.02, log=True)
@@ -134,10 +134,9 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
     # Polyak coeff
     tau = trial.suggest_float("tau", 0.001, 0.05, log=True)
     # For Gaussian actor
-    log_std_init = trial.suggest_float("log_std_init", -2.5, 0.0)
+    # log_std_init = trial.suggest_float("log_std_init", -2.5, 0.0)
 
     # Display true values
-    trial.set_user_attr("gamma", 1 - one_minus_gamma)
     trial.set_user_attr("batch_size", 2**batch_size_pow)
     trial.set_user_attr("gradient_steps", 2**gradient_steps_pow)
     trial.set_user_attr("policy_delay", 2**policy_delay_pow)
@@ -149,7 +148,7 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
         "batch_size_pow": batch_size_pow,
         "tau": tau,
         # "learning_starts": learning_starts,
-        "one_minus_gamma": one_minus_gamma,
+        "gamma": gamma,
         "learning_rate": learning_rate,
         # "qf_learning_rate": qf_learning_rate,
         "policy_delay_pow": policy_delay_pow,
@@ -157,7 +156,7 @@ def sample_tqc_params(trial: optuna.Trial) -> dict[str, Any]:
         "net_arch_complexity": net_arch_complexity,
         # "activation_fn": activation_fn,
         # "optimizer_class": optax.adamw,
-        "log_std_init": log_std_init,
+        # "log_std_init": log_std_init,
     })
 
 
@@ -199,9 +198,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=True, keep_info=not args_cli.no_info)
 
-    # if "ppo" not in args_cli.algo:
-    #     from isaaclab_rl.sb3 import ClipActionWrapper
-    #     env = ClipActionWrapper(env, percent=3)
+    low = None
+    if "Unitree-A" in args_cli.task or "Unitree-Go" in args_cli.task:
+        low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+        high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
+    elif "-Anymal" in args_cli.task:
+        # Anymal-C Rough
+        low = 1.1 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
+        high = 1.1 * np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
+
+    if "ppo" not in args_cli.algo and low is not None:
+        from isaaclab_rl.sb3 import ClipActionWrapper
+        # env = ClipActionWrapper(env, percent=3)
+        env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")
 
