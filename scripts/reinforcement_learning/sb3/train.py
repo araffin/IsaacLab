@@ -389,7 +389,17 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if key in agent_cfg:
             norm_args[key] = agent_cfg.pop(key)
 
-    if norm_args and norm_args.get("normalize_input"):
+    vec_norm_path = None
+    # vec_norm_path = Path("./logs/model_vecnormalize.pkl")
+
+    if vec_norm_path and vec_norm_path.exists():
+        print(f"Loading saved normalization: {vec_norm_path}")
+        env = VecNormalize.load(vec_norm_path, env)
+        # Constant norm
+        env.training = False
+        env.norm_reward = False
+
+    elif norm_args and norm_args.get("normalize_input"):
         print(f"Normalizing input, {norm_args=}")
         env = VecNormalize(
             env,

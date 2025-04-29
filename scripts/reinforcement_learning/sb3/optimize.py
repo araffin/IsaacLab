@@ -67,6 +67,7 @@ signal.signal(signal.SIGINT, raise_interrupt)
 """Rest everything follows."""
 
 import gymnasium as gym
+import numpy as np
 import random
 import time
 
@@ -76,7 +77,6 @@ import sbx
 from optuna.samplers import CmaEsSampler, RandomSampler, TPESampler
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
-import numpy as np
 
 # from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecNormalize
@@ -209,22 +209,26 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
 
     if "ppo" not in args_cli.algo and low is not None:
         from isaaclab_rl.sb3 import ClipActionWrapper
+
         # env = ClipActionWrapper(env, percent=3)
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")
 
-    print("Normalizing input")
-    env = VecNormalize(
-        env,
-        training=True,
-        norm_obs=True,
-        # norm_reward="normalize_value" in agent_cfg
-        # and agent_cfg.pop("normalize_value"),
-        # clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
-        # gamma=agent_cfg["gamma"],
-        # clip_reward=np.inf,
-    )
+    norm_obs = False
+    if norm_obs:
+        print("Normalizing input")
+        env = VecNormalize(
+            env,
+            training=True,
+            norm_obs=True,
+            # norm_reward="normalize_value" in agent_cfg
+            # and agent_cfg.pop("normalize_value"),
+            # clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
+            # gamma=agent_cfg["gamma"],
+            # clip_reward=np.inf,
+        )
+
     print(f"{env.num_envs=}")
 
     N_STARTUP_TRIALS = 5
@@ -304,10 +308,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         agent.learn(total_timesteps=int(3e7), callback=callback)
         trial.set_user_attr("num_timesteps", agent.num_timesteps)
         env.seed(args_cli.seed)
-        # do not update them at test time
-        env.training = False
-        # reward normalization is not needed at test time
-        env.norm_reward = False
+        if isinstance(env, VecNormalize):
+            # do not update them at test time
+            # FIXME: constant norm will be used afterward, reset after eval?
+            env.training = False
+            # reward normalization is not needed at test time
+            env.norm_reward = False
         mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
         trial.set_user_attr("std_reward", std_reward)
 
