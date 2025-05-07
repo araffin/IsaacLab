@@ -378,7 +378,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # agent_cfg["policy_kwargs"]["ortho_init"] = True
     # agent_cfg["policy_kwargs"]["log_std_init"] = -0.5
     # agent_cfg["policy_kwargs"]["net_arch"] = [1024, 512, 256]
-
+    # agent_cfg["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
+    # agent_cfg["policy_kwargs"]["squash_output"] = squash_output
+    # agent_cfg["policy_kwargs"]["optimizer_class"] = optax.adam
+    # agent_cfg["policy_kwargs"]["optimizer_kwargs"] = {"eps": 1e-5}
+    # agent_cfg["policy_kwargs"]["ortho_init"] = True
+    #
     if args_cli.hyperparams is not None:
         print("Updating hyperparams from cli")
         agent_cfg.update(args_cli.hyperparams)
@@ -405,18 +410,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             env,
             training=True,
             norm_obs=norm_args["normalize_input"],
-            norm_reward=norm_args.get("normalize_input", False),
+            norm_reward=norm_args.get("normalize_value", False),
             clip_obs=norm_args.get("clip_obs", 100.0),
             gamma=agent_cfg["gamma"],
             clip_reward=np.inf,
         )
-
-    # agent_cfg["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
-    # agent_cfg["policy_kwargs"]["squash_output"] = squash_output
-    # agent_cfg["policy_kwargs"]["optimizer_class"] = optax.adam
-    # agent_cfg["policy_kwargs"]["optimizer_kwargs"] = {"eps": 1e-5}
-    # agent_cfg["policy_kwargs"]["ortho_init"] = True
-    # agent_cfg["policy_kwargs"]["net_arch"] = [512, 256, 128]
 
     # Sort for printing
     hyperparams = {key: agent_cfg[key] for key in sorted(agent_cfg.keys())}

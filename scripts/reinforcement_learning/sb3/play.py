@@ -165,6 +165,12 @@ def main():
     vec_norm_path = Path(vec_norm_path)
 
     logging.getLogger().setLevel(logging.INFO)
+    norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
+    norm_args = {}
+    for key in norm_keys:
+        if key in agent_cfg:
+            norm_args[key] = agent_cfg.pop(key)
+
     # normalize environment (if needed)
     if vec_norm_path.exists():
         print(f"Loading saved normalization: {vec_norm_path}")
@@ -173,13 +179,16 @@ def main():
         env.training = False
         # reward normalization is not needed at test time
         env.norm_reward = False
-    elif "normalize_input" in agent_cfg:
+    elif norm_args and norm_args.get("normalize_input"):
         print("Relearning normalization")
         env = VecNormalize(
             env,
             training=True,
-            norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
-            clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
+            norm_obs=norm_args["normalize_input"],
+            norm_reward=False, # Do not normalize reward at test time
+            clip_obs=norm_args.get("clip_obs", 100.0),
+            gamma=agent_cfg["gamma"],
+            clip_reward=np.inf,
         )
 
     # create agent from stable baselines
