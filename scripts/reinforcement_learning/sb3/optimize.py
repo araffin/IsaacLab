@@ -214,8 +214,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
 
     print(f"Action space: {env.action_space}")
-
-    norm_obs = False
+    # Note: no normalization for Anymal Rough env
+    norm_obs = "Rough" not in args_cli.task
     if norm_obs:
         print("Normalizing input")
         env = VecNormalize(
