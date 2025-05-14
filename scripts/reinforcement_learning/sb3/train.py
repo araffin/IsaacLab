@@ -442,6 +442,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
 
+    from stable_baselines3.common.utils import LinearSchedule
+
+    agent_cfg["learning_rate"] = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.1)
+    print(agent_cfg["learning_rate"])
+
     algo_class = {
         "ppo_sb3": sb3.PPO,
         "ppo": sbx.PPO,
