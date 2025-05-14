@@ -83,7 +83,9 @@ from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
-box_pattern = r"Box\((?P<low>-?(\d+\.?\d*)), (?P<high>-?(\d+\.?\d*)),"
+# FIXME: save action low/high as np array or pickle
+float_pattern = r"-?\d+\.?\d*"
+box_pattern = rf"Box\((?P<low>{float_pattern}), (?P<high>{float_pattern}),"
 
 
 def main():
@@ -152,12 +154,14 @@ def main():
 
         if "[" in space_str:
             low_str, high_str, *_ = space_str.split(", ")
-            low = np.array(eval(low_str.replace("Box(", "").replace("  ", " ").replace(" ", ",")))
-            high = np.array(eval(high_str.replace("  ", " ").replace(" ", ",")))
+            # Remove Box(, then string to numpy array
+            low = np.asarray(np.matrix(low_str[len("Box(") :])).flatten()
+            high = np.asarray(np.matrix(high_str)).flatten()
         elif maybe_match := re.search(box_pattern, space_str):
             low = np.full(len(env.action_space.low), float(maybe_match.group("low")))
             high = np.full(len(env.action_space.low), float(maybe_match.group("high")))
         else:
+            print(f"Could not decode action space: {space_str}")
             low, high = None, None
     else:
         low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
