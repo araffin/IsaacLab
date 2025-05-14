@@ -444,7 +444,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     from stable_baselines3.common.utils import LinearSchedule
 
-    agent_cfg["learning_rate"] = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.1)
+    agent_cfg["learning_rate"] = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.15)
     print(agent_cfg["learning_rate"])
 
     algo_class = {
