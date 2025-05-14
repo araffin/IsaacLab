@@ -132,6 +132,9 @@ from isaaclab.utils.io import dump_pickle, dump_yaml
 from isaaclab_rl.sb3 import LogEveryNTimesteps, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
+
+with contextlib.suppress(ImportError):
+    import disney_bdx.tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 ppo_defaults = dict(
@@ -253,9 +256,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("Loading SB3 default")
         agent_cfg = {
             "n_timesteps": 5e7,
-            # "n_timesteps": 5e7,
             # Note: no normalization for Anymal Rough env
-            "normalize_input": False,
+            "normalize_input": "Rough" not in args_cli.task,
             "normalize_value": False,
             "clip_obs": 10.0,
             "seed": 42,
@@ -351,8 +353,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
     elif "-Anymal" in args_cli.task:
         # Anymal-C Rough
-        low = 1.1 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
-        high = 1.1 * np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
+        low = 0.8 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
+        high = 0.8 * np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
+    elif "-Disney-Bdx" in args_cli.task:
+        low = np.full(len(env.action_space.low), -3.0)
+        high = np.full(len(env.action_space.low), 3.0)
 
     if "ppo" not in args_cli.algo and low is not None:
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))

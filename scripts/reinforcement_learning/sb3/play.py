@@ -11,7 +11,9 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
 import logging
+import re
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
@@ -73,9 +75,15 @@ from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkp
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
+
+with contextlib.suppress(ImportError):
+    import disney_bdx.tasks  # noqa: F401
+
 from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+
+box_pattern = r"Box\((?P<low>-?(\d+\.?\d*)), (?P<high>-?(\d+\.?\d*)),"
 
 
 def main():
@@ -141,10 +149,14 @@ def main():
     maybe_action_space = Path(log_dir) / "action_space.txt"
     if maybe_action_space.is_file():
         space_str = maybe_action_space.read_text()
+
         if "[" in space_str:
             low_str, high_str, *_ = space_str.split(", ")
             low = np.array(eval(low_str.replace("Box(", "").replace("  ", " ").replace(" ", ",")))
             high = np.array(eval(high_str.replace("  ", " ").replace(" ", ",")))
+        elif maybe_match := re.search(box_pattern, space_str):
+            low = np.full(len(env.action_space.low), float(maybe_match.group("low")))
+            high = np.full(len(env.action_space.low), float(maybe_match.group("high")))
         else:
             low, high = None, None
     else:
@@ -185,7 +197,7 @@ def main():
             env,
             training=True,
             norm_obs=norm_args["normalize_input"],
-            norm_reward=False, # Do not normalize reward at test time
+            norm_reward=False,  # Do not normalize reward at test time
             clip_obs=norm_args.get("clip_obs", 100.0),
             gamma=agent_cfg["gamma"],
             clip_reward=np.inf,
