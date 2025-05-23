@@ -97,6 +97,9 @@ class PlotActionVecEnvWrapper(VecEnvWrapper):
     def plot(self) -> None:
         # Flatten the env dimension
         actions = self.actions.reshape(-1, self.n_actions)
+        np.set_printoptions(precision=1)
+        print(np.percentile(actions, 2.5, axis=0))
+        print(np.percentile(actions, 97.5, axis=0))
         print("Saving to /tmp/plot_actions.npz")
         np.savez("/tmp/plot_actions.npz", actions=actions)
         n_steps = self.num_envs * self.n_steps
