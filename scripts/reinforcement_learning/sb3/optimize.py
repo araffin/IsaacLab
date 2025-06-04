@@ -314,7 +314,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
             env.training = False
             # reward normalization is not needed at test time
             env.norm_reward = False
-        mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=50, warn=False)
+        # n_eval_episodes=50
+        mean_reward, std_reward = evaluate_policy(agent, env, n_eval_episodes=512, warn=False)
         trial.set_user_attr("std_reward", std_reward)
 
         # Free memory
