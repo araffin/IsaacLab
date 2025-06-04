@@ -442,10 +442,27 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
 
-    from stable_baselines3.common.utils import LinearSchedule
+    if "ppo" not in args_cli.algo:
+        from stable_baselines3.common.utils import LinearSchedule
 
-    agent_cfg["learning_rate"] = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.15)
-    print(agent_cfg["learning_rate"])
+        agent_cfg["learning_rate"] = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.15)
+        print(agent_cfg["learning_rate"])
+
+    # from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
+    # n_actions = env.action_space.shape[0]
+    # noise_std = 0.2
+    # agent_cfg["action_noise"] = NormalActionNoise(
+    #     mean=np.zeros(n_actions),
+    #     sigma=np.full(n_actions, noise_std),
+    # )
+    # from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
+    # n_actions = env.action_space.shape[0]
+    # noise_std = 0.3
+    # agent_cfg["action_noise"] = OrnsteinUhlenbeckActionNoise(
+    #     mean=np.zeros(n_actions),
+    #     sigma=np.full(n_actions, noise_std),
+    # )
+    # print(agent_cfg["action_noise"])
 
     algo_class = {
         "ppo_sb3": sb3.PPO,
