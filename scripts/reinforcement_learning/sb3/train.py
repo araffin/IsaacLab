@@ -119,6 +119,9 @@ import stable_baselines3 as sb3
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecNormalize
 
+with contextlib.suppress(ImportError):
+    from stable_baselines3.common.buffers import NStepReplayBuffer
+
 from isaaclab.envs import (
     DirectMARLEnv,
     DirectMARLEnvCfg,
@@ -443,6 +446,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
+
+    # if "ppo" not in args_cli.algo:
+    #     agent_cfg["replay_buffer_class"] = NStepReplayBuffer
+    #     agent_cfg["replay_buffer_kwargs"] = {"gamma": agent_cfg["gamma"], "n_steps": 3}
+    #     print(agent_cfg["replay_buffer_class"])
+    #     print(agent_cfg["replay_buffer_kwargs"])
+    #     # Correct gamma used in Q-target
+    #     agent_cfg["gamma"] = agent_cfg["gamma"] ** agent_cfg["replay_buffer_kwargs"]["n_steps"]
 
     if "ppo" not in args_cli.algo:
         from stable_baselines3.common.utils import LinearSchedule
