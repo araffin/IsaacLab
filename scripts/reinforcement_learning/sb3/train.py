@@ -345,17 +345,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # low = np.array([-6.7, -7.8, -6.3, -5.4, -8.4, -8.7, -4.4, -5.6, -13.4, -19.0, -11.2, -9.0])
         # high = np.array([13.1, 6.5, 15.5, 11.8, 9.6, 8.7, 9.5, 7.7, 17.5, 10.3, 8.9, 13.5])
         # np.percentile(a["actions"], 2.5, axis=0)
-        low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+        # low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+        # np.percentile(a["actions"], 97.5, axis=0)
+        # high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
         # 1%
         # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
-        # np.percentile(a["actions"], 97.5, axis=0)
-        high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
         # 99%
         # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
+        low = np.array([-2.2, -4.0, -1.7, -3.6, -3.4, -3.0, -1.9, -1.8, -2.7, -2.7, -2.7, -3.0])
+        high = np.array([1.5, 1.7, 1.9, 0.7, 2.2, 2.3, 2.5, 3.8, 2.9, 2.7, 2.2, 2.3])
     elif "-Anymal" in args_cli.task:
         # Anymal-C Rough
-        low = 0.8 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
-        high = 0.8 * np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
+        low = np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
+        high = np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
     elif "-Disney-Bdx" in args_cli.task:
         # low = np.full(len(env.action_space.low), -3.0)
         # high = np.full(len(env.action_space.low), 3.0)
@@ -389,9 +391,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # agent_cfg["param_resets"] = [int(i * 4e7) for i in range(1, 10)]
     # agent_cfg["policy_kwargs"]["squash_output"] = squash_output
     # agent_cfg["policy_kwargs"]["optimizer_class"] = optax.adam
-    # agent_cfg["policy_kwargs"]["optimizer_kwargs"] = {"eps": 1e-5}
+    # weight_decay:0.001 (0.0001 by default)
+    # agent_cfg["policy_kwargs"]["optimizer_kwargs"] = {"eps": 1e-5, "b1": 0.5} # b1=0.5 (default 0.9)
     # agent_cfg["policy_kwargs"]["ortho_init"] = True
-    #
     if args_cli.hyperparams is not None:
         print("Updating hyperparams from cli")
         agent_cfg.update(args_cli.hyperparams)
