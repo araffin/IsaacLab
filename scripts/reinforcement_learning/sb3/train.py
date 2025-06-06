@@ -447,13 +447,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
 
-    # if "ppo" not in args_cli.algo:
-    #     agent_cfg["replay_buffer_class"] = NStepReplayBuffer
-    #     agent_cfg["replay_buffer_kwargs"] = {"gamma": agent_cfg["gamma"], "n_steps": 3}
-    #     print(agent_cfg["replay_buffer_class"])
-    #     print(agent_cfg["replay_buffer_kwargs"])
-    #     # Correct gamma used in Q-target
-    #     agent_cfg["gamma"] = agent_cfg["gamma"] ** agent_cfg["replay_buffer_kwargs"]["n_steps"]
+    if "ppo" not in args_cli.algo and "n_steps" in agent_cfg:
+        agent_cfg["replay_buffer_class"] = NStepReplayBuffer
+        agent_cfg["replay_buffer_kwargs"] = {"gamma": agent_cfg["gamma"], "n_steps": agent_cfg["n_steps"]}
+        print(agent_cfg["replay_buffer_class"])
+        print(agent_cfg["replay_buffer_kwargs"])
+        # Correct gamma used in Q-target
+        agent_cfg["gamma"] = agent_cfg["gamma"] ** agent_cfg["n_steps"]
+        del agent_cfg["n_steps"]
 
     if "ppo" not in args_cli.algo:
         from stable_baselines3.common.utils import LinearSchedule
