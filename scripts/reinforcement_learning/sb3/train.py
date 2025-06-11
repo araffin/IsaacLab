@@ -129,7 +129,7 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
-from isaaclab_rl.sb3 import LogEveryNTimesteps, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
+from isaaclab_rl.sb3 import LogEveryNTimesteps, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg, LogCallback
 
 import isaaclab_tasks  # noqa: F401
 
@@ -484,7 +484,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         verbose=2,
         save_vecnormalize=True,
     )
-    callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+    callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval), LogCallback()]
 
     # train the agent
     with contextlib.suppress(KeyboardInterrupt):

@@ -35,7 +35,7 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, Vec
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 try:
-    from stable_baselines3.common.callbacks import LogEveryNTimesteps
+    from stable_baselines3.common.callbacks import BaseCallback, LogEveryNTimesteps
 except ImportError:
     from stable_baselines3.common.callbacks import ConvertCallback, EveryNTimesteps
 
@@ -53,6 +53,22 @@ except ImportError:
         def _log_data(self, _locals: dict[str, Any], _globals: dict[str, Any]) -> bool:
             self.model._dump_logs()
             return True
+
+
+class LogCallback(BaseCallback):
+    """
+    Log additional data (like curriculum level)
+    """
+
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+
+    def _on_step(self) -> bool:
+        # Log scalar value (here a random variable)
+        if len(self.locals["infos"]) > 0 and "Curriculum/terrain_levels" in self.locals["infos"][0]:
+            curriculum_level = self.locals["infos"][0]["Curriculum/terrain_levels"]
+            self.logger.record("curriculum/terrain_levels", curriculum_level)
+        return True
 
 
 # TO BE able to pickle it, no JIT
@@ -443,6 +459,10 @@ class Sb3VecEnvWrapper(VecEnv):
                 else:
                     terminal_obs = obs[idx]
                 infos[idx]["terminal_observation"] = terminal_obs
+
+            # Log curriculum (already a mean, stored in the env with index=0)
+            if "log" in extras.keys() and "Curriculum/terrain_levels" in extras["log"]:
+                infos[0]["Curriculum/terrain_levels"] = extras["log"]["Curriculum/terrain_levels"]
 
             return infos
 
