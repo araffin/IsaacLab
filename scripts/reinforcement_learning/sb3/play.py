@@ -232,8 +232,8 @@ def main():
     # reset environment
     obs = env.reset()
     timestep = 0
-    current_rewards = np.zeros(args_cli.num_envs)
-    current_lengths = np.zeros(args_cli.num_envs)
+    current_rewards = np.zeros(env.num_envs)
+    current_lengths = np.zeros(env.num_envs)
     log_returns = []
     log_length = []
     # simulate environment
