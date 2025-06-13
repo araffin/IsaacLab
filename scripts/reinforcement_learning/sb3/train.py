@@ -336,32 +336,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     low = None
     if "Unitree-A" in args_cli.task or "Unitree-Go" in args_cli.task:
         # For Unitree A1/GO1/... (action_scale=0.25)
-        # env = ClipActionWrapper(env, percent=3)
-        # For Anymal
-        # env = ClipActionWrapper(env, percent=2.5)
-        # From PPO Run
-        # from isaaclab_rl.sb3 import ClipActionWrapper
-        # low = np.array([-3.6, -2.5, -3.1, -1.8, -4.5, -4.2, -4.0, -3.9, -2.8, -2.8, -2.9, -2.7])
-        # high = np.array([3.2, 2.8, 2.7, 2.8, 2.9, 2.7, 3.2, 2.9, 7.2, 5.7, 5.0, 5.8])
-        # env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
-        # From PPO Run on Rough terrain
-        # Min/Max
-        # low = np.array([-6.7, -7.8, -6.3, -5.4, -8.4, -8.7, -4.4, -5.6, -13.4, -19.0, -11.2, -9.0])
-        # high = np.array([13.1, 6.5, 15.5, 11.8, 9.6, 8.7, 9.5, 7.7, 17.5, 10.3, 8.9, 13.5])
-        # np.percentile(a["actions"], 2.5, axis=0)
-        # low = np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
-        # np.percentile(a["actions"], 97.5, axis=0)
-        # high = np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
-        # 1%
-        # low = np.array([-2.3, -0.8, -2.9, -1.7, -2.7, -2.8, -1.2, -0.9, -2.9, -3.2, -3.2, -2.1])
-        # 99%
-        # high = np.array([1.4, 2.9, 1.1, 2.3, 1.8, 3.1, 3.9, 4.1, 4.3, 4. , 2.7, 3. ])
-        low = np.array([-2.2, -4.0, -1.7, -3.6, -3.4, -3.0, -1.9, -1.8, -2.7, -2.7, -2.7, -3.0])
-        high = np.array([1.5, 1.7, 1.9, 0.7, 2.2, 2.3, 2.5, 3.8, 2.9, 2.7, 2.2, 2.3])
+        low = 1.3 * np.array([-1.8, -2.3, -1.2, -0.8, -2.5, -3.1, -1.2, -1.4, -1.8, -1.1, -1.2, -1.5])
+        high = 1.3 * np.array([1.5, 2.0, 1.8, 2.6, 1.5, 1.4, 2.5, 2.5, 3.0, 3.2, 2.7, 3.2])
     elif "-Anymal" in args_cli.task:
         # Anymal-C Rough
-        low = np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
-        high = np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
+        # low = 1.2 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
+        # high = 1.2 * np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
+        low = 1.25 * np.array([-1.3, -1.4, -0.2, -0.2, -0.7, -1.7, -0.6, -1.6, -2.8, -1.1, -2.9, -1.0])
+        high = 1.25 * np.array([0.2, 0.6, 1.5, 1.3, 1.6, 0.6, 1.9, 0.7, 0.7, 2.4, 0.7, 2.3])
     elif "-Disney-Bdx" in args_cli.task:
         # low = np.full(len(env.action_space.low), -3.0)
         # high = np.full(len(env.action_space.low), 3.0)
