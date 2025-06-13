@@ -129,36 +129,39 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
-from isaaclab_rl.sb3 import LogEveryNTimesteps, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg, LogCallback
+from isaaclab_rl.sb3 import LogCallback, LogEveryNTimesteps, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 
 with contextlib.suppress(ImportError):
     import disney_bdx.tasks  # noqa: F401
+
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 ppo_defaults = dict(
-    n_steps=25,
-    batch_size=6400,  # for 1024 envs, to have 4 minibatches
+    policy="MlpPolicy",
+    # n_steps=25,
+    # batch_size=6400,  # for 1024 envs, to have 4 minibatches
     # n_steps=24,
-    # batch_size=24576, # 4 mini-batches for 4096 envs
+    n_steps=24,
+    batch_size=24576,  # 4 mini-batches for 4096 envs
     # target_kl=0.01,
     gae_lambda=0.95,
     n_epochs=5,
-    ent_coef=0.01,
-    # ent_coef=0.005, # For Anymal-C env
+    # ent_coef=0.01,
+    ent_coef=0.005,  # For Anymal-C env
     learning_rate=1e-3,
     clip_range=0.2,
     vf_coef=1.0,
     max_grad_norm=1.0,
-    policy="MlpPolicy",
     policy_kwargs=dict(
         activation_fn=elu,
         net_arch=[512, 256, 128],
-        optimizer_kwargs=dict(eps=1e-7),
-        # net_arch=[512, 512, 256]
-        # net_arch=[128, 128, 128],
-        # log_std_init=-2.5,
+        # Match PyTorch Implementation
+        optimizer_kwargs=dict(eps=0.0, eps_root=1e-8),
+        # optimizer_kwargs=dict(eps=1e-6),
+        # optimizer_class=optax.adamw,
+        # log_std_init=-0.8,
     ),
 )
 
@@ -175,9 +178,10 @@ ppo_sb3 = dict(
     policy="MlpPolicy",
     policy_kwargs=dict(
         activation_fn=torch.nn.ELU,
-        # net_arch=[128, 128, 128],
         net_arch=[512, 256, 128],
-        max_grad_norm=1.0,
+        optimizer_kwargs=dict(eps=1e-8),
+        # optimizer_kwargs=dict(eps=1e-5),
+        ortho_init=False,
         # log_std_init=-2.0,
         # use_expln=True,
         # squash_output=True,

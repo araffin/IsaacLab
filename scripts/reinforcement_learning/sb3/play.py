@@ -27,7 +27,9 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc"])
+parser.add_argument(
+    "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "ppo_sb3", "sac", "tqc"]
+)
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
     "--use_pretrained_checkpoint",
@@ -63,8 +65,7 @@ import time
 import torch
 
 import sbx
-
-# from stable_baselines3 import PPO
+import stable_baselines3 as sb3
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
@@ -210,8 +211,12 @@ def main():
     # create agent from stable baselines
     print(f"Loading checkpoint from: {checkpoint_path}")
 
-    # import stable_baselines3 as sb3
-    algo_class = {"ppo": sbx.PPO, "sac": sbx.SAC, "tqc": sbx.TQC}[args_cli.algo]
+    algo_class = {
+        "ppo_sb3": sb3.PPO,
+        "ppo": sbx.PPO,
+        "tqc": sbx.TQC,
+        "sac": sbx.SAC,
+    }[args_cli.algo]
 
     agent = algo_class.load(checkpoint_path, env, print_system_info=True)
 
