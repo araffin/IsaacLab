@@ -259,9 +259,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if not agent_cfg:
         print("Loading SB3 default")
         agent_cfg = {
-            "n_timesteps": 5e7,
+            # "n_timesteps": 5e7,
+            "n_timesteps": 15e7,
             # Note: no normalization for Anymal Rough env
             "normalize_input": "Rough" not in args_cli.task,
+            # "normalize_input": True,
             "normalize_value": False,
             "clip_obs": 10.0,
             "seed": 42,
@@ -430,11 +432,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
 
-    if "ppo" not in args_cli.algo:
+    if "ppo" not in args_cli.algo and agent_cfg["lr_schedule"] is not None:
         from stable_baselines3.common.utils import LinearSchedule
 
         agent_cfg["learning_rate"] = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.15)
         print(agent_cfg["learning_rate"])
+        del agent_cfg["lr_schedule"]
 
     # from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
     # n_actions = env.action_space.shape[0]
