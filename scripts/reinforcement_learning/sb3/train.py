@@ -432,7 +432,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
 
-    if "ppo" not in args_cli.algo and agent_cfg["lr_schedule"] is not None:
+    if "ppo" not in args_cli.algo and agent_cfg.get("lr_schedule") is not None:
         from stable_baselines3.common.utils import LinearSchedule
 
         agent_cfg["learning_rate"] = LinearSchedule(start=5e-4, end=1e-5, end_fraction=0.15)
