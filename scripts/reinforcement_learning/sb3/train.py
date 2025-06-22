@@ -142,8 +142,8 @@ ppo_defaults = dict(
     policy="MlpPolicy",
     # n_steps=25,
     # batch_size=6400,  # for 1024 envs, to have 4 minibatches
-    # n_steps=24,
     n_steps=24,
+    # 25600 for 25 steps
     batch_size=24576,  # 4 mini-batches for 4096 envs
     # target_kl=0.01,
     gae_lambda=0.95,
@@ -338,8 +338,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     low = None
     if "Unitree-A" in args_cli.task or "Unitree-Go" in args_cli.task:
         # For Unitree A1/GO1/... (action_scale=0.25)
-        low = 1.3 * np.array([-1.8, -2.3, -1.2, -0.8, -2.5, -3.1, -1.2, -1.4, -1.8, -1.1, -1.2, -1.5])
-        high = 1.3 * np.array([1.5, 2.0, 1.8, 2.6, 1.5, 1.4, 2.5, 2.5, 3.0, 3.2, 2.7, 3.2])
+        multiplier = 1.25 if "Rough-" in args_cli.task else 1.0
+        # From rough:
+        # low = multiplier * np.array([-1.8, -2.3, -1.2, -0.8, -2.5, -3.1, -1.2, -1.4, -1.8, -1.1, -1.2, -1.5])
+        # high = multiplier * np.array([1.5, 2.0, 1.8, 2.6, 1.5, 1.4, 2.5, 2.5, 3.0, 3.2, 2.7, 3.2])
+        low = multiplier * np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
+        high = multiplier * np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
     elif "-Anymal" in args_cli.task:
         # Anymal-C Rough
         # low = 1.2 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
