@@ -354,10 +354,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         low = 1.25 * np.array([-1.3, -1.4, -0.2, -0.2, -0.7, -1.7, -0.6, -1.6, -2.8, -1.1, -2.9, -1.0])
         high = 1.25 * np.array([0.2, 0.6, 1.5, 1.3, 1.6, 0.6, 1.9, 0.7, 0.7, 2.4, 0.7, 2.3])
     elif "-Disney-Bdx" in args_cli.task:
-        # low = np.full(len(env.action_space.low), -3.0)
-        # high = np.full(len(env.action_space.low), 3.0)
-        low = np.array([-0.6, -0.5, -0.4, -0.5, -0.7, -0.2, -0.1, -0.6, -1.1, -1.5, -0.5, -0.6, -0.8, -1.0, -0.7, -0.2])
-        high = np.array([0.4, 0.3, 0.5, -0.1, 0.6, 0.3, 1.3, 1.1, 0.0, 0.7, 0.7, 1.5, 0.4, 0.6, 0.7, 0.8])
+        # low = np.full(len(env.action_space.low), -1.0)
+        # high = np.full(len(env.action_space.low), 1.0)
+        low = np.array([-1.1, -0.7, -0.6, -0.9, -0.4, -0.4,  0.0 , -0.4, -1.7, -1.7, -0.2, -1.2, -1.2, -1.0 , -0.8, -0.7])
+        high = np.array([0.3, 0.2, 0.9, 0.7, 0.3, 0.9, 1.5, 0.2, 0.6, 1.7, 0.4, 2.0, 0.8, 0.9, 0.7, 1.6])
+
+
 
     if "ppo" not in args_cli.algo and low is not None:
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
