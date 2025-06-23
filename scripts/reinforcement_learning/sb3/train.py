@@ -159,6 +159,9 @@ ppo_defaults = dict(
         net_arch=[512, 256, 128],
         # Match PyTorch Implementation
         optimizer_kwargs=dict(eps=0.0, eps_root=1e-8),
+        # IMPORTANT: initialize actor output close to zero
+        # otherwise std>1 and it doesn't converge
+        ortho_init=True,
         # optimizer_kwargs=dict(eps=1e-6),
         # optimizer_class=optax.adamw,
         # log_std_init=-0.8,
