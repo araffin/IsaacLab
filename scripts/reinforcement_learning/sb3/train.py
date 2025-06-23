@@ -345,6 +345,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # high = multiplier * np.array([1.5, 2.0, 1.8, 2.6, 1.5, 1.4, 2.5, 2.5, 3.0, 3.2, 2.7, 3.2])
         low = multiplier * np.array([-2.0, -0.4, -2.6, -1.3, -2.2, -1.9, -0.7, -0.4, -2.1, -2.4, -2.5, -1.7])
         high = multiplier * np.array([1.1, 2.6, 0.7, 1.9, 1.3, 2.6, 3.4, 3.8, 3.4, 3.4, 1.9, 2.1])
+        # low = multiplier * np.array([-1.1, -1.4, -2.1, -1.6, -1.1, -1.6, -1.3, -1.5, -1.8, -2.1, -2.7, -1.8])
+        # high = multiplier * np.array([1.3, 1.6, 1.3, 1.5, 2.1, 1.8, 1.9, 1.8, 1.6, 1.3, 1.0 , 1.9])
     elif "-Anymal" in args_cli.task:
         # Anymal-C Rough
         # low = 1.2 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
