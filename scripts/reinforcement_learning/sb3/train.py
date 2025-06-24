@@ -356,10 +356,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     elif "-Disney-Bdx" in args_cli.task:
         # low = np.full(len(env.action_space.low), -1.0)
         # high = np.full(len(env.action_space.low), 1.0)
-        low = np.array([-1.1, -0.7, -0.6, -0.9, -0.4, -0.4,  0.0 , -0.4, -1.7, -1.7, -0.2, -1.2, -1.2, -1.0 , -0.8, -0.7])
+        low = np.array([-1.1, -0.7, -0.6, -0.9, -0.4, -0.4, 0.0, -0.4, -1.7, -1.7, -0.2, -1.2, -1.2, -1.0, -0.8, -0.7])
         high = np.array([0.3, 0.2, 0.9, 0.7, 0.3, 0.9, 1.5, 0.2, 0.6, 1.7, 0.4, 2.0, 0.8, 0.9, 0.7, 1.6])
-
-
 
     if "ppo" not in args_cli.algo and low is not None:
         env = ClipActionWrapper(env, low=low.astype(np.float32), high=high.astype(np.float32))
