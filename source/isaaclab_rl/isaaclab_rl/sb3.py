@@ -65,9 +65,13 @@ class LogCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         # Log scalar value (here a random variable)
-        if len(self.locals["infos"]) > 0 and "Curriculum/terrain_levels" in self.locals["infos"][0]:
-            curriculum_level = self.locals["infos"][0]["Curriculum/terrain_levels"]
-            self.logger.record("curriculum/terrain_levels", curriculum_level)
+        if len(self.locals["infos"]) > 0:
+            if "Curriculum/terrain_levels" in self.locals["infos"][0]:
+                curriculum_level = self.locals["infos"][0]["Curriculum/terrain_levels"]
+                self.logger.record("curriculum/terrain_levels", curriculum_level)
+            for key, value in self.locals["infos"][0].items():
+                if "Episode_Reward/" in key or "Metrics/" in key or "Episode_Termination" in key:
+                    self.logger.record(key.lower(), value)
         return True
 
 
@@ -464,8 +468,17 @@ class Sb3VecEnvWrapper(VecEnv):
                 infos[idx]["terminal_observation"] = terminal_obs
 
             # Log curriculum (already a mean, stored in the env with index=0)
-            if "log" in extras.keys() and "Curriculum/terrain_levels" in extras["log"]:
-                infos[0]["Curriculum/terrain_levels"] = extras["log"]["Curriculum/terrain_levels"]
+            if "log" in extras.keys():
+                if "Curriculum/terrain_levels" in extras["log"]:
+                    infos[0]["Curriculum/terrain_levels"] = extras["log"]["Curriculum/terrain_levels"]
+                # Log additional metrics
+                for key, value in extras["log"].items():
+                    if "Episode_Reward/" in key or "Metrics/" in key or "Episode_Termination" in key:
+                        try:
+                            infos[0][key] = value.item()
+                        except AttributeError:
+                            # Already a float
+                            infos[0][key] = value
 
             return infos
 
