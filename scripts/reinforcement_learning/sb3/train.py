@@ -138,6 +138,16 @@ with contextlib.suppress(ImportError):
 
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
+
+class VecNormRough(VecNormalize):
+    height_scan_dim = 187
+
+    def _normalize_obs(self, obs: np.ndarray, obs_rms) -> np.ndarray:
+        new_obs = np.clip((obs - obs_rms.mean) / np.sqrt(obs_rms.var + self.epsilon), -self.clip_obs, self.clip_obs)
+        new_obs[-self.height_scan_dim :] = obs[-self.height_scan_dim :]
+        return new_obs
+
+
 ppo_defaults = dict(
     policy="MlpPolicy",
     # n_steps=25,
@@ -262,8 +272,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if not agent_cfg:
         print("Loading SB3 default")
         agent_cfg = {
-            # "n_timesteps": 5e7,
-            "n_timesteps": 15e7,
+            "n_timesteps": 5e7,
+            # "n_timesteps": 15e7,
             # Note: no normalization for Anymal Rough env
             "normalize_input": "Rough" not in args_cli.task,
             # "normalize_input": True,
@@ -411,7 +421,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     elif norm_args and norm_args.get("normalize_input"):
         print(f"Normalizing input, {norm_args=}")
-        env = VecNormalize(
+        # vec_norm_class = VecNormRough if "Rough-" in args_cli.task else VecNormalize
+        vec_norm_class = VecNormalize
+        env = vec_norm_class(
             env,
             training=True,
             norm_obs=norm_args["normalize_input"],
