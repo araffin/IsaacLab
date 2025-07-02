@@ -148,7 +148,7 @@ class VecNormRough(VecNormalize):
         return new_obs
 
 
-ppo_defaults = dict(
+ppo_sbx_defaults = dict(
     policy="MlpPolicy",
     # n_steps=25,
     # batch_size=6400,  # for 1024 envs, to have 4 minibatches
@@ -188,77 +188,39 @@ ppo_simba = dict(
 )
 
 ppo_sb3 = dict(
-    policy="MlpPolicy",
     policy_kwargs=dict(
         activation_fn=torch.nn.ELU,
         net_arch=[512, 256, 128],
         optimizer_kwargs=dict(eps=1e-8),
-        # optimizer_kwargs=dict(eps=1e-5),
         ortho_init=False,
-        # log_std_init=-2.0,
-        # use_expln=True,
-        # squash_output=True,
     ),
-    # use_sde=True,
-    # sde_sample_freq=8,
-    # TODO: use AdamW too
 )
-ppo_sb3_defaults = deepcopy(ppo_defaults)
+ppo_sb3_defaults = deepcopy(ppo_sbx_defaults)
 ppo_sb3_defaults.update(ppo_sb3)
 
-simba_hyperparams = dict(
-    policy="SimbaPolicy",
-    buffer_size=800_000,
-    policy_kwargs={
-        "optimizer_class": optax.adamw,
-        # "optimizer_kwargs": {"eps": 1e-5},
-        "activation_fn": elu,
-        "net_arch": {"pi": [128, 128], "qf": [256, 256]},
-        # "net_arch": [128, 128, 128],
-        "n_critics": 2,
-    },
-    learning_starts=1_000,
-    # param_resets=[int(i * 1e7) for i in range(1, 10)],
-    train_freq=5,
-    # learning_rate=7e-4,
-    gamma=0.985,
-    batch_size=512,
-    gradient_steps=512,
-    policy_delay=10,
-    # ent_coef=0.001,
-    ent_coef="auto_0.01",
-    # target_entropy=-10.0,
-    # tau=0.008,
-    # top_quantiles_to_drop_per_net=5,
-)
-
 # Optimized with TQC on A1 flat for 1024 envs
-optimized_tqc_hyperparams = dict(
+optimized_sac_hyperparams = dict(
     policy="MlpPolicy",
-    buffer_size=800_000,
+    batch_size=512,
+    buffer_size=2_000_000,
     policy_kwargs={
-        "optimizer_class": optax.adamw,
-        "activation_fn": elu,
         "net_arch": [512, 256, 128],
-        # "net_arch": {"pi": [128, 128, 128], "qf": [512, 256, 128]},
-        "n_critics": 2,
+        "activation_fn": elu,
+        "optimizer_class": optax.adamw,
         "layer_norm": True,
     },
-    learning_starts=1_000,
-    # param_resets=[int(i * 1e7) for i in range(1, 10)],
-    train_freq=4,
-    # learning_rate=0.000375,
-    learning_rate=4e-4,
-    # qf_learning_rate=7e-4,
-    gamma=0.981,
-    batch_size=256,
-    gradient_steps=650,
-    policy_delay=30,
-    ent_coef="auto_0.00631",
+    learning_rate=0.00044689099625712413,
+    learning_starts=2000,
+    policy_delay=8,
+    gamma=0.983100250213744,
+    gradient_steps=32,
+    tau=0.0023055560568780655,
+    # train_freq=10,
+    # use_sde=True,
+    # n_steps=3,
+    ent_coef="auto_0.009471776840423638",
 )
-# Also working for TQC, with 1024 envs:
-# train_freq:4 gradient_steps:60 policy_delay:5 batch_size:1024
-# train_freq:4 gradient_steps:30 policy_delay:5 batch_size:2048
+
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
@@ -285,9 +247,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         default_hyperparams = {
             "ppo_sb3": ppo_sb3_defaults,
-            "ppo": ppo_defaults,
-            "tqc": optimized_tqc_hyperparams,
-            "sac": optimized_tqc_hyperparams,
+            "ppo": ppo_sbx_defaults,
+            "tqc": optimized_sac_hyperparams,
+            "sac": optimized_sac_hyperparams,
         }[args_cli.algo]
 
         agent_cfg.update(default_hyperparams)
@@ -361,6 +323,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # Anymal-C Rough
         # low = 1.2 * np.array([-1.4, -1.2, -0.5, -0.7, -1.7, -1.4, -1.3, -1.3, -2.3, -1.7, -1.8, -2.0])
         # high = 1.2 * np.array([1.0, 1.0, 1.5, 1.2, 1.1, 1.4, 1.6, 1.1, 2.2, 1.6, 1.3, 2.1])
+        # multiplier = 1.25 if "Rough-" in args_cli.task else 1.0
         low = 1.25 * np.array([-1.3, -1.4, -0.2, -0.2, -0.7, -1.7, -0.6, -1.6, -2.8, -1.1, -2.9, -1.0])
         high = 1.25 * np.array([0.2, 0.6, 1.5, 1.3, 1.6, 0.6, 1.9, 0.7, 0.7, 2.4, 0.7, 2.3])
     elif "-Disney-Bdx" in args_cli.task:
