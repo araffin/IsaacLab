@@ -49,7 +49,7 @@ parser.add_argument("--video_interval", type=int, default=2000, help="Interval b
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
-    "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc", "ppo_sb3"]
+    "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc", "ppo_sb3", "td3"]
 )
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--log-interval", type=int, default=100_000, help="Log data every n timesteps.")
@@ -221,6 +221,11 @@ optimized_sac_hyperparams = dict(
     ent_coef="auto_0.009471776840423638",
 )
 
+td3_hyperparams = deepcopy(optimized_sac_hyperparams)
+# Ent coef is SAC specific
+if "ent_coef" in td3_hyperparams:
+    td3_hyperparams.pop("ent_coef")
+
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
@@ -250,6 +255,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "ppo": ppo_sbx_defaults,
             "tqc": optimized_sac_hyperparams,
             "sac": optimized_sac_hyperparams,
+            "td3": optimized_sac_hyperparams,
         }[args_cli.algo]
 
         agent_cfg.update(default_hyperparams)
@@ -425,13 +431,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(agent_cfg["learning_rate"])
         del agent_cfg["lr_schedule"]
 
-    # from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
-    # n_actions = env.action_space.shape[0]
-    # noise_std = 0.2
-    # agent_cfg["action_noise"] = NormalActionNoise(
-    #     mean=np.zeros(n_actions),
-    #     sigma=np.full(n_actions, noise_std),
-    # )
+    if args_cli.algo == "td3":
+        from stable_baselines3.common.noise import NormalActionNoise
+
+        n_actions = env.action_space.shape[0]
+        noise_std = 0.1
+        agent_cfg["action_noise"] = NormalActionNoise(
+            mean=np.zeros(n_actions),
+            sigma=np.full(n_actions, noise_std),
+        )
+        print(agent_cfg["action_noise"])
     # from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
     # n_actions = env.action_space.shape[0]
     # noise_std = 0.3
@@ -446,6 +455,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "ppo": sbx.PPO,
         "tqc": sbx.TQC,
         "sac": sbx.SAC,
+        "td3": sbx.TD3,
     }[args_cli.algo]
 
     agent = algo_class(env=env, verbose=1, **agent_cfg)
