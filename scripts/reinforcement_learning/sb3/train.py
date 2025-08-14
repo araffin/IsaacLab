@@ -247,13 +247,13 @@ sample_dqn_hyperparams = dict(
         # "optimizer_class": optax.adamw,
         # "layer_norm": True,
         # "n_critics": 2,
-        "n_critics": 1,
+        "n_critics": 2,
     },
     learning_rate=0.00044689099625712413,
     learning_starts=2000,
     # policy_delay=8,
-    gamma=0.983100250213744,
     gradient_steps=32,
+    gamma=0.983100250213744,
     tau=0.0023055560568780655,
 )
 
