@@ -69,7 +69,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import numpy as np
 import os
 import random
 import time
@@ -169,7 +168,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast)
+    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
     # Plot action taken
     if args_cli.plot_action_dist:
