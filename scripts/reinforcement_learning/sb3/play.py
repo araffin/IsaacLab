@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,7 @@ import argparse
 import contextlib
 import logging
 import re
+import sys
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
@@ -31,6 +32,7 @@ parser.add_argument(
     "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "ppo_sb3", "sac", "tqc"]
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--use_pretrained_checkpoint",
     action="store_true",
@@ -42,16 +44,24 @@ parser.add_argument(
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
-parser.add_argument("--fast", action="store_true", default=False, help="Faster correct training but not extras logged.")
+parser.add_argument(
+    "--keep_all_info",
+    action="store_true",
+    default=False,
+    help="Use a slower SB3 wrapper but keep all the extra training info.",
+)
 parser.add_argument("--plot-action-dist", action="store_true", default=False, help="Plot action distribution.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli = parser.parse_args()
+args_cli, hydra_args = parser.parse_known_args()
+
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
 
+# clear out sys.argv for Hydra
+sys.argv = [sys.argv[0]] + hydra_args
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -61,6 +71,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import numpy as np
 import os
+import random
 import time
 import torch
 
@@ -68,7 +79,13 @@ import sbx
 import stable_baselines3 as sb3
 from stable_baselines3.common.vec_env import VecNormalize
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
+from isaaclab.envs import (
+    DirectMARLEnv,
+    DirectMARLEnvCfg,
+    DirectRLEnvCfg,
+    ManagerBasedRLEnvCfg,
+    multi_agent_to_single_agent,
+)
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import load_yaml
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -80,7 +97,8 @@ import isaaclab_tasks  # noqa: F401
 with contextlib.suppress(ImportError):
     import disney_bdx.tasks  # noqa: F401
 
-from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, parse_env_cfg
+from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
@@ -89,20 +107,30 @@ float_pattern = r"-?\d+\.?\d*"
 box_pattern = rf"Box\((?P<low>{float_pattern}), (?P<high>{float_pattern}),"
 
 
-def main():
+@hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Play with stable-baselines agent."""
-    # parse configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
-    )
-    # agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
+    # grab task name for checkpoint path
+    task_name = args_cli.task.split(":")[-1]
+    train_task_name = task_name.replace("-Play", "")
+    # randomly sample a seed if seed = -1
+    if args_cli.seed == -1:
+        args_cli.seed = random.randint(0, 10000)
+
+    # override configurations with non-hydra CLI arguments
+    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+    agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+    # set the environment seed
+    # note: certain randomizations occur in the environment initialization so we set the seed here
+    env_cfg.seed = agent_cfg["seed"]
+    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # directory for logging into
-    log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.algo, args_cli.task))
+    log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.algo, train_task_name))
     log_root_path = os.path.abspath(log_root_path)
     # checkpoint and log_dir stuff
     if args_cli.use_pretrained_checkpoint:
-        checkpoint_path = get_published_pretrained_checkpoint("sb3", args_cli.task)
+        checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name)
         if not checkpoint_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return
@@ -112,18 +140,18 @@ def main():
             checkpoint = "model_.*.zip"
         else:
             checkpoint = "model.zip"
-        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint)
+        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint, sort_alpha=False)
     else:
         checkpoint_path = args_cli.checkpoint
     log_dir = os.path.dirname(checkpoint_path)
 
     agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
 
-    # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
-
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
+    # post-process agent configuration
+    agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):

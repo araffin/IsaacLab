@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,36 +23,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn  # noqa: F401
+import warnings
 from gymnasium import spaces
 from typing import Any
 
 import jax.numpy as jnp
 import seaborn as sns
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env import VecEnvWrapper
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
 from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
-
-try:
-    from stable_baselines3.common.callbacks import BaseCallback, LogEveryNTimesteps
-except ImportError:
-    from stable_baselines3.common.callbacks import ConvertCallback, EveryNTimesteps
-
-    # Implement for SB3 < v2.6.0
-    class LogEveryNTimesteps(EveryNTimesteps):
-        """
-        Log data every ``n_steps`` timesteps
-
-        :param n_steps: Number of timesteps between two trigger.
-        """
-
-        def __init__(self, n_steps: int):
-            super().__init__(n_steps, callback=ConvertCallback(self._log_data))
-
-        def _log_data(self, _locals: dict[str, Any], _globals: dict[str, Any]) -> bool:
-            self.model._dump_logs()
-            return True
 
 
 class LogCallback(BaseCallback):
@@ -151,16 +134,20 @@ class PlotActionVecEnvWrapper(VecEnvWrapper):
         plt.show()
 
 
+# remove SB3 warnings because PPO with bigger net actually benefits from GPU
+warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")
+
 """
 Configuration Parser.
 """
 
 
-def process_sb3_cfg(cfg: dict) -> dict:
+def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
     """Convert simple YAML types to Stable-Baselines classes/components.
 
     Args:
         cfg: A configuration dictionary.
+        num_envs: the number of parallel environments (used to compute `batch_size` for a desired number of minibatches)
 
     Returns:
         A dictionary containing the converted configuration.
@@ -182,12 +169,17 @@ def process_sb3_cfg(cfg: dict) -> dict:
                         initial_value = float(initial_value)
                         hyperparams[key] = lambda progress_remaining: progress_remaining * initial_value
                     elif isinstance(value, (float, int)):
-                        # Negative value: ignore (ex: for clipping)
+                        # negative value: ignore (ex: for clipping)
                         if value < 0:
                             continue
                         hyperparams[key] = constant_fn(float(value))
                     else:
                         raise ValueError(f"Invalid value for {key}: {hyperparams[key]}")
+
+        # Convert to a desired batch_size (n_steps=2048 by default for SB3 PPO)
+        if "n_minibatches" in hyperparams:
+            hyperparams["batch_size"] = (hyperparams.get("n_steps", 2048) * num_envs) // hyperparams["n_minibatches"]
+            del hyperparams["n_minibatches"]
 
         return hyperparams
 
@@ -211,8 +203,8 @@ class Sb3VecEnvWrapper(VecEnv):
 
     Note:
         While Stable-Baselines3 supports Gym 0.26+ API, their vectorized environment
-        still uses the old API (i.e. it is closer to Gym 0.21). Thus, we implement
-        the old API for the vectorized environment.
+        uses their own API (i.e. it is closer to Gym 0.21). Thus, we implement
+        the API for the vectorized environment.
 
     We also add monitoring functionality that computes the un-discounted episode
     return and length. This information is added to the info dicts under key `episode`.
@@ -245,16 +237,13 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = False, keep_info: bool = True):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = True):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
             fast_variant: Use fast variant for processing info
-                (correct but extra info are not included)
-            keep_info: Whether to convert IsaacLab info to SB3 format.
-                When False, it is faster but incorrect (truncation are not properly set)
-                and episodic reward is not reported.
+                (Only episodic reward, lengths and truncation info are included)
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
@@ -266,26 +255,13 @@ class Sb3VecEnvWrapper(VecEnv):
             )
         # initialize the wrapper
         self.env = env
-        self.keep_info = keep_info
         self.fast_variant = fast_variant
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
         self.render_mode = self.unwrapped.render_mode
-
-        self.default_infos = [{"episode": None} for _ in range(self.num_envs)]
-
-        # obtain gym spaces
-        # note: stable-baselines3 does not like when we have unbounded action space so
-        #   we set it to some high value here. Maybe this is not general but something to think about.
-        observation_space = self.unwrapped.single_observation_space["policy"]
-        action_space = self.unwrapped.single_action_space
-        if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
-            print(f"Overriding action space {action_space} to Box(low=-100, high=100) because it is unbounded")
-            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
-
-        # initialize vec-env
-        VecEnv.__init__(self, self.num_envs, observation_space, action_space)
+        self.observation_processors = {}
+        self._process_spaces()
         # add buffer for logging episodic information
         self._ep_rew_buf = np.zeros(self.num_envs)
         self._ep_len_buf = np.zeros(self.num_envs)
@@ -369,14 +345,10 @@ class Sb3VecEnvWrapper(VecEnv):
         self.reset_ids = reset_ids = dones.nonzero()[0]
 
         # update episode un-discounted return and length
-        # self._ep_rew_buf += torch.as_tensor(rewards)
         self._ep_rew_buf += rewards
         self._ep_len_buf += 1
         # convert extra information to list of dicts
-        if self.keep_info:
-            infos = self._process_extras(obs, terminated, truncated, extras, reset_ids)
-        else:
-            infos = self.default_infos
+        infos = self._process_extras(obs, terminated, truncated, extras, reset_ids)
 
         # reset info for terminated environments
         self._ep_rew_buf[reset_ids] = 0.0
@@ -416,8 +388,8 @@ class Sb3VecEnvWrapper(VecEnv):
             return env_method(*method_args, indices=indices, **method_kwargs)
 
     def env_is_wrapped(self, wrapper_class, indices=None):  # noqa: D102
+        # fake implementation to be able to use `evaluate_policy()` helper
         return [False]
-        # raise NotImplementedError("Checking if environment is wrapped is not supported.")
 
     def get_images(self):  # noqa: D102
         raise NotImplementedError("Getting images is not supported.")
@@ -426,6 +398,59 @@ class Sb3VecEnvWrapper(VecEnv):
     Helper functions.
     """
 
+    def _process_spaces(self):
+        # process observation space
+        observation_space = self.unwrapped.single_observation_space["policy"]
+        if isinstance(observation_space, gym.spaces.Dict):
+            for obs_key, obs_space in observation_space.spaces.items():
+                processors: list[callable[[torch.Tensor], Any]] = []
+                # assume normalized, if not, it won't pass is_image_space, which check [0-255].
+                # for scale like image space that has right shape but not scaled, we will scale it later
+                if is_image_space(obs_space, check_channels=True, normalized_image=True):
+                    actually_normalized = np.all(obs_space.low == -1.0) and np.all(obs_space.high == 1.0)
+                    if not actually_normalized:
+                        if np.any(obs_space.low != 0) or np.any(obs_space.high != 255):
+                            raise ValueError(
+                                "Your image observation is not normalized in environment, and will not be"
+                                "normalized by sb3 if its min is not 0 and max is not 255."
+                            )
+                        # sb3 will handle normalization and transpose, but sb3 expects uint8 images
+                        if obs_space.dtype != np.uint8:
+                            processors.append(lambda obs: obs.to(torch.uint8))
+                        observation_space.spaces[obs_key] = gym.spaces.Box(0, 255, obs_space.shape, np.uint8)
+                    else:
+                        # sb3 will NOT handle the normalization, while sb3 will transpose, its transpose applies to all
+                        # image terms and maybe non-ideal, more, if we can do it in torch on gpu, it will be faster then
+                        # sb3 transpose it in numpy with cpu.
+                        if not is_image_space_channels_first(obs_space):
+
+                            def tranp(img: torch.Tensor) -> torch.Tensor:
+                                return img.permute(2, 0, 1) if len(img.shape) == 3 else img.permute(0, 3, 1, 2)
+
+                            processors.append(tranp)
+                            h, w, c = obs_space.shape
+                            observation_space.spaces[obs_key] = gym.spaces.Box(-1.0, 1.0, (c, h, w), obs_space.dtype)
+
+                    def chained_processor(obs: torch.Tensor, procs=processors) -> Any:
+                        for proc in procs:
+                            obs = proc(obs)
+                        return obs
+
+                    # add processor to the dictionary
+                    if len(processors) > 0:
+                        self.observation_processors[obs_key] = chained_processor
+
+        # obtain gym spaces
+        # note: stable-baselines3 does not like when we have unbounded action space so
+        #   we set it to some high value here. Maybe this is not general but something to think about.
+        action_space = self.unwrapped.single_action_space
+        if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
+            print(f"Overriding action space {action_space} to Box(low=-100, high=100) because it is unbounded")
+            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
+
+        # initialize vec-env
+        VecEnv.__init__(self, self.num_envs, observation_space, action_space)
+
     def _process_obs(self, obs_dict: torch.Tensor | dict[str, torch.Tensor]) -> np.ndarray | dict[str, np.ndarray]:
         """Convert observations into NumPy data type."""
         # Sb3 doesn't support asymmetric observation spaces, so we only use "policy"
@@ -433,7 +458,9 @@ class Sb3VecEnvWrapper(VecEnv):
         # note: ManagerBasedRLEnv uses torch backend (by default).
         if isinstance(obs, dict):
             for key, value in obs.items():
-                obs[key] = value.detach().cpu().numpy()
+                if key in self.observation_processors:
+                    obs[key] = self.observation_processors[key](value)
+                obs[key] = obs[key].detach().cpu().numpy()
         elif isinstance(obs, torch.Tensor):
             obs = obs.detach().cpu().numpy()
         else:
@@ -444,10 +471,8 @@ class Sb3VecEnvWrapper(VecEnv):
         self, obs: np.ndarray, terminated: np.ndarray, truncated: np.ndarray, extras: dict, reset_ids: np.ndarray
     ) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
-        # Faster but correct version
-        # Only process env that terminated and add bootstrapping info
+        # faster version: only process env that terminated and add bootstrapping info
         if self.fast_variant:
-            # infos = deepcopy(self.default_infos)
             infos = [{} for _ in range(self.num_envs)]
 
             for idx in reset_ids:

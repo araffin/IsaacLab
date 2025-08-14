@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -52,11 +52,7 @@ parser.add_argument(
     "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc", "ppo_sb3", "td3"]
 )
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument("--log-interval", type=int, default=100_000, help="Log data every n timesteps.")
-parser.add_argument("--fast", action="store_true", default=False, help="Faster correct training but not extras logged.")
-parser.add_argument(
-    "--no-info", action="store_true", default=False, help="Fastest and incorrect training but no statistics."
-)
+parser.add_argument("--log_interval", type=int, default=100_000, help="Log data every n timesteps.")
 parser.add_argument(
     "--storage", help="Database storage path if distributed optimization should be used", type=str, default=None
 )
@@ -70,7 +66,12 @@ parser.add_argument(
     action=StoreDict,
     help="Overwrite hyperparameter (e.g. learning_rate:0.01 train_freq:10)",
 )
-
+parser.add_argument(
+    "--keep_all_info",
+    action="store_true",
+    default=False,
+    help="Use a slower SB3 wrapper but keep all the extra training info.",
+)
 # parser.add_argument("--monitor", action="store_true", default=False, help="Enable VecMonitor.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -89,7 +90,10 @@ simulation_app = app_launcher.app
 
 
 def cleanup_pbar(*args):
-    # Cleanup pbar
+    """
+    A small helper to stop training and
+    cleanup progress bar properly on ctrl+c
+    """
     import gc
 
     tqdm_objects = [obj for obj in gc.get_objects() if "tqdm" in type(obj).__name__]
@@ -99,7 +103,7 @@ def cleanup_pbar(*args):
     raise KeyboardInterrupt
 
 
-# Disable KeyboardInterrupt override
+# disable KeyboardInterrupt override
 signal.signal(signal.SIGINT, cleanup_pbar)
 
 """Rest everything follows."""
@@ -116,7 +120,7 @@ import sbx
 
 # from stable_baselines3 import PPO
 import stable_baselines3 as sb3
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import (
@@ -129,7 +133,7 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
-from isaaclab_rl.sb3 import LogCallback, LogEveryNTimesteps, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
+from isaaclab_rl.sb3 import LogCallback, Sb3VecEnvWrapper, elu, load_trial, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 
@@ -308,7 +312,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env, fast_variant=args_cli.fast, keep_info=not args_cli.no_info)
+    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
     # if "ppo" not in args_cli.algo:
     #     env = RescaleActionWrapper(env, percent=5.0)
@@ -422,7 +426,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg["tensorboard_log"] = log_dir
 
     # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
+    agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
 
     if "ppo" not in args_cli.algo and agent_cfg.get("lr_schedule") is not None:
         from stable_baselines3.common.utils import LinearSchedule
@@ -459,6 +463,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     }[args_cli.algo]
 
     agent = algo_class(env=env, verbose=1, **agent_cfg)
+
+    if args_cli.checkpoint is not None:
+        print(f"Loading checkpoint: {args_cli.checkpoint}")
+        # TODO: maybe pass **agent_cfg?
+        agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
 
     print(f"{env.num_envs=}")
     # callbacks for agent
