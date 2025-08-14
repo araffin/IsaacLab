@@ -53,6 +53,7 @@ parser.add_argument(
 )
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--log_interval", type=int, default=100_000, help="Log data every n timesteps.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Continue the training from checkpoint.")
 parser.add_argument(
     "--storage", help="Database storage path if distributed optimization should be used", type=str, default=None
 )
@@ -157,6 +158,8 @@ ppo_sbx_defaults = dict(
     # n_steps=25,
     # batch_size=6400,  # for 1024 envs, to have 4 minibatches
     n_steps=24,
+    # Done in preprocess config:
+    # n_minibatches: 4  # batch_size=24576 for n_envs=4096 and n_steps=24
     # 25600 for 25 steps
     batch_size=24576,  # 4 mini-batches for 4096 envs
     # target_kl=0.01,
