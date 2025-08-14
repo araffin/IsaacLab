@@ -49,7 +49,11 @@ parser.add_argument("--video_interval", type=int, default=2000, help="Interval b
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
-    "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "sac", "tqc", "ppo_sb3", "td3"]
+    "--algo",
+    type=str,
+    default="ppo",
+    help="Name of the algorithm.",
+    choices=["ppo", "sac", "tqc", "ppo_sb3", "td3", "sample_dqn"],
 )
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--log_interval", type=int, default=100_000, help="Log data every n timesteps.")
@@ -232,6 +236,27 @@ td3_hyperparams = deepcopy(optimized_sac_hyperparams)
 if "ent_coef" in td3_hyperparams:
     td3_hyperparams.pop("ent_coef")
 
+sample_dqn_hyperparams = dict(
+    policy="MlpPolicy",
+    batch_size=32,
+    n_sampled_actions=50,
+    buffer_size=2_000_000,
+    policy_kwargs={
+        "net_arch": [512, 256, 128],
+        "activation_fn": elu,
+        # "optimizer_class": optax.adamw,
+        # "layer_norm": True,
+        # "n_critics": 2,
+        "n_critics": 1,
+    },
+    learning_rate=0.00044689099625712413,
+    learning_starts=2000,
+    # policy_delay=8,
+    gamma=0.983100250213744,
+    gradient_steps=32,
+    tau=0.0023055560568780655,
+)
+
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
@@ -261,7 +286,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "ppo": ppo_sbx_defaults,
             "tqc": optimized_sac_hyperparams,
             "sac": optimized_sac_hyperparams,
-            "td3": optimized_sac_hyperparams,
+            "td3": td3_hyperparams,
+            "sample_dqn": sample_dqn_hyperparams,
         }[args_cli.algo]
 
         agent_cfg.update(default_hyperparams)
@@ -462,6 +488,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "tqc": sbx.TQC,
         "sac": sbx.SAC,
         "td3": sbx.TD3,
+        "sample_dqn": sbx.SampleDQN,
     }[args_cli.algo]
 
     agent = algo_class(env=env, verbose=1, **agent_cfg)

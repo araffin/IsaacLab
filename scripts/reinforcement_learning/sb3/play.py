@@ -29,7 +29,11 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
-    "--algo", type=str, default="ppo", help="Name of the algorithm.", choices=["ppo", "ppo_sb3", "sac", "tqc"]
+    "--algo",
+    type=str,
+    default="ppo",
+    help="Name of the algorithm.",
+    choices=["ppo", "ppo_sb3", "sac", "tqc", "td3", "sample_dqn"],
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
@@ -244,6 +248,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "ppo": sbx.PPO,
         "tqc": sbx.TQC,
         "sac": sbx.SAC,
+        "td3": sbx.TD3,
+        "sample_dqn": sbx.SampleDQN,
     }[args_cli.algo]
 
     agent = algo_class.load(checkpoint_path, env, print_system_info=True)
