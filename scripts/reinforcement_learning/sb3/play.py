@@ -35,6 +35,9 @@ parser.add_argument(
     help="Name of the algorithm.",
     choices=["ppo", "ppo_sb3", "sac", "tqc", "td3", "sample_dqn"],
 )
+parser.add_argument(
+    "--agent", type=str, default="sb3_cfg_entry_point", help="Name of the RL agent configuration entry point."
+)
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
@@ -111,7 +114,7 @@ float_pattern = r"-?\d+\.?\d*"
 box_pattern = rf"Box\((?P<low>{float_pattern}), (?P<high>{float_pattern}),"
 
 
-@hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
+@hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Play with stable-baselines agent."""
     # grab task name for checkpoint path
@@ -150,6 +153,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     log_dir = os.path.dirname(checkpoint_path)
 
     agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
+    # set the log directory for the environment (works for all environment types)
+    env_cfg.log_dir = log_dir
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
