@@ -234,6 +234,7 @@ optimized_sac_hyperparams = dict(
 )
 
 quick_fix_sac_hyperparams = dict(
+    policy="MlpPolicy",
     # policy_kwargs={
     #     # Similar to PPO network tuned for Unitree A1 task
     #     "activation_fn": elu,
@@ -241,7 +242,9 @@ quick_fix_sac_hyperparams = dict(
     # },
     # When using 2048 envs, gradient_steps=512 corresponds
     # to an update-to-data ratio of 1/4
-    gradient_steps=512,
+    # gradient_steps=512,
+    gradient_steps=32,
+    policy_delay=8,
     # ent_coef="auto_0.006",
 )
 

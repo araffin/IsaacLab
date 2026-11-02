@@ -2,10 +2,22 @@
 
 export XDG_CACHE_HOME=/home_local/$USER/.cache/
 source env_isaaclab/bin/activate
+export LOG_NAME=$(date "+%Y-%m-%d_%H-%M-%S")
 
 # seeds=(3831217417 1756129809 4075310593 2904435568 4115729820 2726071262 1865059290 1408779145 3716099507 411100252)
-seeds=(3831217417 1756129809 4075310593)
+seeds=(3831217417 1756129809 4075310593 2904435568 4115729820)
 envs=(Isaac-Velocity-Flat-Unitree-A1-v0)
+
+for env_id in ${envs[*]}; do
+  for seed in ${seeds[*]}; do
+      python scripts/reinforcement_learning/sb3/train.py --task $env_id \
+      --headless --algo sac --num_envs 2048 --seed $seed \
+      -param ent_coef:"'auto_0.006'"
+  done
+done
+
+
+mv -iv logs/sb3/sac logs/sb3/sac_ent_coef_2048_$LOG_NAME
 
 for env_id in ${envs[*]}; do
   for seed in ${seeds[*]}; do
@@ -13,3 +25,5 @@ for env_id in ${envs[*]}; do
       --headless --algo sac --num_envs 2048 --seed $seed
   done
 done
+
+mv -iv logs/sb3/sac logs/sb3/sac_limits_2048_$LOG_NAME
