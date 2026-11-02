@@ -233,6 +233,18 @@ optimized_sac_hyperparams = dict(
     ent_coef="auto_0.009471776840423638",
 )
 
+quick_fix_sac_hyperparams = dict(
+    # policy_kwargs={
+    #     # Similar to PPO network tuned for Unitree A1 task
+    #     "activation_fn": elu,
+    #     "net_arch": [512, 256, 128],
+    # },
+    # When using 2048 envs, gradient_steps=512 corresponds
+    # to an update-to-data ratio of 1/4
+    gradient_steps=512,
+    # ent_coef="auto_0.006",
+)
+
 td3_hyperparams = deepcopy(optimized_sac_hyperparams)
 # Ent coef is SAC specific
 if "ent_coef" in td3_hyperparams:
@@ -251,7 +263,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if not agent_cfg:
         print("Loading SB3 default")
         agent_cfg = {
-            "n_timesteps": 5e7,
+            "n_timesteps": 2e7,
             # "n_timesteps": 15e7,
             # Note: no normalization for Anymal Rough env
             "normalize_input": "Rough" not in args_cli.task,
@@ -266,7 +278,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "ppo_sb3": ppo_sb3_defaults,
             "ppo": ppo_sbx_defaults,
             "tqc": optimized_sac_hyperparams,
-            "sac": optimized_sac_hyperparams,
+            # "sac": optimized_sac_hyperparams,
+            "sac": quick_fix_sac_hyperparams,
             "td3": optimized_sac_hyperparams,
         }[args_cli.algo]
 
