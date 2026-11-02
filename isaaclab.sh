@@ -127,6 +127,7 @@ ensure_cuda_torch() {
     if "$py" -m pip show torch >/dev/null 2>&1; then
         cur="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
     fi
+    return 0
 
     # skip install if version is already satisfied
     if [[ "$cur" == "$want_torch" ]]; then
