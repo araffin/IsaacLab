@@ -17,7 +17,7 @@ for env_id in ${envs[*]}; do
 done
 
 
-mv -iv logs/sb3/sac logs/sb3/sac_ent_coef_2048_$LOG_NAME
+mv -iv logs/sb3/sac logs/sb3/sac_big_net_ent_coef_2048_$LOG_NAME
 
 for env_id in ${envs[*]}; do
   for seed in ${seeds[*]}; do
@@ -26,4 +26,4 @@ for env_id in ${envs[*]}; do
   done
 done
 
-mv -iv logs/sb3/sac logs/sb3/sac_limits_2048_$LOG_NAME
+mv -iv logs/sb3/sac logs/sb3/sac_big_net_limits_2048_$LOG_NAME
